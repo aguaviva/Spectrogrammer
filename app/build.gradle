@@ -1,0 +1,44 @@
+apply plugin: 'com.android.application'
+
+android {
+    signingConfigs {
+        release_111111 {
+            storeFile file('C:\\Users\\amdev02\\Documents\\AndroidStudio\\caca.jks')
+            storePassword '111111'
+            keyAlias 'key0'
+            keyPassword '111111'
+        }
+    }
+    compileSdkVersion 23
+    ndkVersion '21.2.6472646'
+    buildToolsVersion '29.0.2'
+    defaultConfig.with {
+        applicationId 'com.example.plasma'
+        minSdkVersion 23
+        targetSdkVersion 23
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static'
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release_111111
+            proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                         'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            version '3.10.2'
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.android.support:appcompat-v7:23.0.0'
+    //compile "com.android.support:appcompat-v7:21.0.+"
+}
