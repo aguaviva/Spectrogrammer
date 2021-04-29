@@ -271,6 +271,11 @@ public:
         scaleLog.init(m_binCount,maxFreq);
     }
 
+    void SetMinMax(double min, double max)
+    {
+        //scaleLog.init(m_binCount,maxFreq);
+    }
+
     int XToBin(double x) const
     {
         double t = unlerp(0, m_width, (double) x);
@@ -524,33 +529,50 @@ static void fill_plasma( AndroidBitmapInfo*  info, void*  pixels)
     }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_PlasmaView_ConnectWithAudio(JNIEnv * env, jclass obj)
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWithAudio(JNIEnv * env, jclass obj)
 {
     GetBufferQueues(&sampleRate, &freeQueue, &recQueue);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_PlasmaView_renderPlasmaInit(JNIEnv * env, jclass obj, jint  fftLength, int sampleRate_, int barsHeight_, float timeOverlap_)
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetFftLength(JNIEnv * env, jclass obj, jint  fftLength)
 {
     pSpectrum = new myFFT(fftLength);
-    timeOverlap = timeOverlap_;
-    sampleRate = (float)sampleRate_;
-    barsHeight = barsHeight_;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetFftLength(JNIEnv * env, jclass obj)
+{
+    return pSpectrum->getFFTLength();
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetBarsHeight(JNIEnv * env, jclass obj, jint  barsHeight_)
+{
+    barsHeight=barsHeight_;
     waterFallRaw = barsHeight_;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_renderPlasmaSetOverlap(JNIEnv * env, jclass obj, jfloat timeOverlap_)
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetOverlap(JNIEnv * env, jclass obj, jfloat timeOverlap_)
 {
-    if (timeOverlap_<0.05f)
-        timeOverlap_ = 0.05f;
+    if (timeOverlap_<0.02f)
+        timeOverlap_ = 0.02f;
     timeOverlap = timeOverlap_;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_renderPlasmaDecay(JNIEnv * env, jclass obj, jfloat decay_)
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetDecay(JNIEnv * env, jclass obj, jfloat decay_)
 {
     decay = decay_;
 }
 
-extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_PlasmaView_renderPlasmaFreqToX(JNIEnv * env, jclass obj, double freq)
+extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetOverlap(JNIEnv * env, jclass obj)
+{
+    return timeOverlap;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetDecay(JNIEnv * env, jclass obj)
+{
+    return decay;
+}
+
+extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_FreqToX(JNIEnv * env, jclass obj, double freq)
 {
     if (pScaleLog)
         return pScaleLog->FreqToX(freq);
@@ -558,7 +580,7 @@ extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_PlasmaView_renderPlas
 }
 
 
-extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_PlasmaView_renderPlasmaXToFreq(JNIEnv * env, jclass obj, double x)
+extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_XToFreq(JNIEnv * env, jclass obj, double x)
 {
     if (pScaleLog)
         return pScaleLog->XtoFreq(x);
@@ -566,7 +588,17 @@ extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_PlasmaView_renderPlas
     return 0;
 }
 
-extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_PlasmaView_renderPlasma(JNIEnv * env, jclass  obj, jobject bitmap,  jlong  time_ms)
+extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Spectrogram_SetMinMaxFreqs(JNIEnv * env, jclass obj, double min, double max)
+{
+    if (pScaleLog) {
+        pScaleLog->SetMinMax(min, max);
+    }
+
+    return pScaleLog!=nullptr;
+}
+
+
+extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_Update(JNIEnv * env, jclass  obj, jobject bitmap,  jlong  time_ms)
 {
     AndroidBitmapInfo  info;
     void*              pixels;

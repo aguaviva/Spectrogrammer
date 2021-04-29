@@ -44,7 +44,7 @@ static EchoAudioEngine engine;
 bool EngineService(void *ctx, uint32_t msg, void *data);
 void SetBufQueues(float sampleRate, AudioQueue *freeQ, AudioQueue *recQ);
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_createSLEngine(JNIEnv *env, jclass type, jint sampleRate, jint framesPerBuf) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_createSLEngine(JNIEnv *env, jclass type, jint sampleRate, jint framesPerBuf) {
   SLresult result;
   memset(&engine, 0, sizeof(engine));
 
@@ -89,7 +89,7 @@ void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ
   *pRecQ = engine.recBufQueue_;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Plasma_createAudioRecorder(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioRecorder(JNIEnv *env, jclass type) {
   SampleFormat sampleFormat;
   memset(&sampleFormat, 0, sizeof(sampleFormat));
   sampleFormat.pcmFormat_ = static_cast<uint16_t>(engine.bitsPerSample_);
@@ -109,13 +109,13 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Plasma_createAudio
   return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_deleteAudioRecorder(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_deleteAudioRecorder(JNIEnv *env, jclass type) {
   if (engine.recorder_) delete engine.recorder_;
 
   engine.recorder_ = nullptr;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_startPlay(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_startPlay(JNIEnv *env, jclass type) {
   engine.frameCount_ = 0;
   /*
    * start player: make it into waitForData state
@@ -123,17 +123,17 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_startPlay(JNIEn
   engine.recorder_->Start();
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_stopPlay(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_stopPlay(JNIEnv *env, jclass type) {
   engine.recorder_->Stop();
   delete engine.recorder_;
   engine.recorder_ = nullptr;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_pausePlay(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_pausePlay(JNIEnv *env, jclass type) {
   engine.recorder_->Pause();
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Plasma_deleteSLEngine( JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_deleteSLEngine( JNIEnv *env, jclass type) {
   delete engine.recBufQueue_;
   delete engine.freeBufQueue_;
   releaseSampleBufs(engine.bufs_, engine.bufCount_);
