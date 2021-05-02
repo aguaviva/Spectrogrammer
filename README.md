@@ -1,7 +1,7 @@
 # Spectrogrammer
 Android app that shows a spectrogram
 
-## Spectrogrammer
+## Features
  - Low latency audio (uses openSL and native code)
  - Up to 8192 samples FFT (using FFTW)
  - Log/Linear scales
@@ -9,7 +9,7 @@ Android app that shows a spectrogram
  - Vertical bars smoothing 
  - Measuring cursor 
 
-## Screenshot
+## Screenshots
 
 This is me singing from the lowest note I can perfrom to the higest. I did this just for the screenshot, and it turns out I have the range of a baritono!
 
