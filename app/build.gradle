@@ -9,13 +9,14 @@ android {
             keyPassword '111111'
         }
     }
-    compileSdkVersion 23
-    ndkVersion '21.2.6472646'
-    buildToolsVersion '29.0.2'
+    compileSdkVersion 28
+    buildToolsVersion "29.0.0"
+    ndkVersion = '20.1.5948944'
+
     defaultConfig.with {
         applicationId 'com.example.plasma'
-        minSdkVersion 23
-        targetSdkVersion 23
+        minSdkVersion 21
+        targetSdkVersion 28
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_static'
@@ -39,6 +40,6 @@ android {
 }
 
 dependencies {
-    implementation 'com.android.support:appcompat-v7:23.0.0'
+    implementation 'androidx.appcompat:appcompat:1.0.2'
     //compile "com.android.support:appcompat-v7:21.0.+"
 }

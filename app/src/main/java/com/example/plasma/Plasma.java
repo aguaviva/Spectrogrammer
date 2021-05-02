@@ -15,6 +15,7 @@
  */
 package com.example.plasma;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -22,14 +23,17 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.os.Bundle;
 import android.content.Context;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.Gravity;
@@ -66,14 +70,14 @@ public class Plasma  extends AppCompatActivity
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        if (checkSelfPermission(RECORD_AUDIO)!= PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{RECORD_AUDIO}, PERMISSION_REQUEST_CODE);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)!= PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{RECORD_AUDIO}, PERMISSION_REQUEST_CODE);
         }
 
         Audio.onCreate((AudioManager) getSystemService(Context.AUDIO_SERVICE));
 
         setContentView(R.layout.layout);
-        android.support.v7.widget.Toolbar myToolbar = (android.support.v7.widget.Toolbar) findViewById(R.id.toolbar);
+        Toolbar myToolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(myToolbar);
 
         plasmaView = (PlasmaView)findViewById(R.id.plasmaView);
@@ -168,10 +172,12 @@ public class Plasma  extends AppCompatActivity
         onOffSwitch.setChecked(Spectrogram.GetFrequencyLogarithmicAxis());
 
         //--------------------------------
-        boolean focusable = true;
         int width = LinearLayout.LayoutParams.MATCH_PARENT;
         int height = LinearLayout.LayoutParams.WRAP_CONTENT;
-        final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+        final PopupWindow popupWindow = new PopupWindow(popupView, width, height);
+        popupWindow.setOutsideTouchable(true);
+        popupWindow.setFocusable(true);
+        popupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         popupWindow.showAtLocation(popupView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 0);
     }
 
