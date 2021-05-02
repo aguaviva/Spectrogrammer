@@ -2,9 +2,10 @@
 Android app that shows a spectrogram
 
 ## Spectrogrammer
- - Up to 8192 samples FFT
+ - Low latency audio (uses openSL and native code)
+ - Up to 8192 samples FFT (using FFTW)
  - Log/Linear scales
- - Configurable overlap
+ - Configurable FFT overlap
  - Vertical bars smoothing 
  - Measuring cursor 
 
