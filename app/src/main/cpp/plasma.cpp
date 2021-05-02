@@ -24,6 +24,7 @@
 #include "audio_common.h"
 #include <jni.h>
 #include <ctime>
+#include <algorithm>
 #include <android/log.h>
 #include <android/bitmap.h>
 #else
@@ -111,14 +112,18 @@ double clamp(double v, double min, double max)
         return max;
     return v;
 }
+double maxx(double a, double b)
+{
+    return (a>b)? a:b;
+}
 
 class ScaleLog {
     double a,b;
 public:
 
-    void init(double maxIdx,double maxFreq)
+    void init(double maxIdx,double minFreq, double maxFreq)
     {
-        a = 10;
+        a = minFreq;
         b = log10(maxFreq/a)/maxIdx;
     }
 
@@ -257,7 +262,9 @@ class ScaleBuffer
     bool m_useLogY = true;
     bool m_useLogX = true;
 
-    ScaleLog scaleLog;
+    //ScaleLog scaleXtoBin = ScaleLog();
+    ScaleLog scaleXtoFreq = ScaleLog();
+
 public:
     ScaleBuffer(myFFT *pFFT, int width, double sampleRate)
     {
@@ -267,35 +274,53 @@ public:
         m_data = (double *) malloc(sizeof(double) * m_width);
         m_binCount = pFFT->getBins();
 
-        double maxFreq = m_pFFT->bin2Freq(m_sampleRate, m_binCount);
-        scaleLog.init(m_binCount,maxFreq);
+        initScale(width, true);
     }
 
-    void SetMinMax(double min, double max)
+    ~ScaleBuffer()
     {
-        //scaleLog.init(m_binCount,maxFreq);
+        free(m_data);
     }
 
-    int XToBin(double x) const
+    void initScale(int width, bool bLogarithmic)
     {
-        double t = unlerp(0, m_width, (double) x);
+        m_useLogX = bLogarithmic;
+
+        //scaleXtoBin.init(width,100, m_binCount);
+        scaleXtoFreq.init(width,100,  m_sampleRate/2);
+    }
+
+    void SetFrequencyLogarithmicAxis(bool bLogarithmic)
+    {
+        m_useLogX = bLogarithmic;
+        initScale(m_width, bLogarithmic);
+    }
+
+    bool GetFrequencyLogarithmicAxis()
+    {
+        return m_useLogX;
+    }
+
+    int FreqToBin(double freq) const
+    {
+        double t = unlerp( 1, m_sampleRate/2.0f, freq);
         return lerp( t, 1, m_binCount);
-    }
-
-    int BinToX(double x) const
-    {
-        double t = unlerp( 1, m_binCount, (double) x);
-        return lerp(t, 0, m_width);
     }
 
     double XtoFreq(double x) const
     {
-        return scaleLog.forward(XToBin(x));
+        if (m_useLogX)
+            return scaleXtoFreq.forward(x);
+        else
+            return x*(m_sampleRate/2.0)/m_width;
     }
 
-    double FreqToX(double x) const
+    double FreqToX(double freq) const
     {
-        return BinToX(scaleLog.backward(x));
+        if (m_useLogX)
+            return scaleXtoFreq.backward(freq);
+        else
+            return (freq*m_width)/(m_sampleRate/2.0);
     }
 
     void Build(double min, double max)
@@ -305,17 +330,29 @@ public:
             m_data[i]=0;
 
         // set X axis
-        for(int i=0; i < m_width; i++)
+        int x=0;
+        int bin = FreqToBin(XtoFreq(x));
+        m_data[x]=m_pFFT->getData(bin);
+
+        for(; x < m_width; x++)
         {
-            int bin = XToBin(i);
-            if (m_useLogX)
+            int binNext = FreqToBin(XtoFreq(x+1));
+
+            if (binNext==bin)
             {
-                double freq = scaleLog.forward(bin);
-                bin = m_pFFT->freq2Bin(m_sampleRate, freq);
+                m_data[x]=m_data[x-1];
             }
-            double v = m_pFFT->getData(bin);
-            if (v>m_data[i])
-                m_data[i]=v;
+            else
+            {
+                double v = 0;
+                for (int i = bin; i < binNext; i++)
+                {
+                    v = maxx(m_pFFT->getData(i), v);
+                }
+                m_data[x]=v;
+            }
+
+            bin = binNext;
         }
 
         // set Y axis
@@ -328,7 +365,6 @@ public:
                 m_data[i] = convertToDecibels(m_data[i], ref);
             }
         }
-
     }
 
     double GetNormalizedData(int i) const
@@ -435,38 +471,12 @@ AU_FORMAT *GetSampleData(sample_buf *b0)
     return (AU_FORMAT *)b0->buf_;
 }
 
-bool chunkLoader(sample_buf *b0, sample_buf *b1, int offset)
-{
-    int left = (int)(AU_LEN(b0->cap_) - offset);
-
-    AU_FORMAT *ptrB0 = GetSampleData(b0);
-
-    if (left<=0)
-    {
-        return false;
-    }
-    else if ( left > pSpectrum->getFFTLength())
-    {
-        pSpectrum->convertShortToFFT(&ptrB0[offset], 0, pSpectrum->getFFTLength());
-        return true;
-    } else {
-        if (b1==nullptr)
-            return false;
-
-        pSpectrum->convertShortToFFT(&ptrB0[offset], 0, left);
-
-        AU_FORMAT *ptrB1 = GetSampleData(b1);
-        pSpectrum->convertShortToFFT(&ptrB1[0], left, pSpectrum->getFFTLength() - left);
-        return true;
-    }
-}
-
 float sampleRate = 48000.0f;
 float timeOverlap = .5f; //in seconds
 float decay = .5f; //in seconds
 
-AudioQueue* freeQueue;       // user
-AudioQueue* recQueue;        // user
+AudioQueue* freeQueue = nullptr;       // user
+AudioQueue* recQueue = nullptr;        // user
 
 void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ);
 
@@ -481,53 +491,104 @@ int offset = 0;
 sample_buf *q[2] = { nullptr, nullptr};
 int  barsHeight = 500;
 int  waterFallRaw = barsHeight;
+bool bRedoScale = false;
 
-static void fill_plasma( AndroidBitmapInfo*  info, void*  pixels)
+AudioQueue audioFttQueue(32);
+int audioFttQueueTotalSize=0;
+
+static void PrepareBuffer(const int chunkOffset)
 {
-    if ((pScaleLog==nullptr) || (pScaleLog->GetLength() != info->width))
-    {
-        delete pScaleLog;
+    int dataToWrite = pSpectrum->getFFTLength();
+
+    int i=0;
+    int destOffset = 0;
+    sample_buf *buf = nullptr;
+
+    audioFttQueue.peek(&buf, i++);
+    assert(buf);
+    AU_FORMAT *ptrB0 = GetSampleData(buf) + chunkOffset;
+    int toWrite = std::min(dataToWrite, (int)(AU_LEN(buf->cap_) - chunkOffset));
+    assert(toWrite>0);
+
+    pSpectrum->convertShortToFFT(ptrB0, destOffset, toWrite);
+    destOffset += toWrite;
+    dataToWrite -= toWrite;
+
+    while(dataToWrite>0) {
+        buf = nullptr;
+        audioFttQueue.peek(&buf, i++);
+        assert(buf);
+        ptrB0 = GetSampleData(buf);
+        toWrite = std::min(dataToWrite, (int)(AU_LEN(buf->cap_)));
+
+        pSpectrum->convertShortToFFT(ptrB0, destOffset, toWrite);
+        destOffset += toWrite;
+        dataToWrite -= toWrite;
+    }
+}
+
+static void fill_plasma( AndroidBitmapInfo*  info, void*  pixels) {
+    if ((pScaleLog == nullptr) || (pScaleLog->GetLength() != info->width) || (bRedoScale == true)) {
+        bool log;
+        if (pScaleLog!=nullptr) {
+            log = pScaleLog->GetFrequencyLogarithmicAxis();
+            delete pScaleLog;
+        }
         pScaleLog = new ScaleBuffer(pSpectrum, info->width, sampleRate);
+        pScaleLog->SetFrequencyLogarithmicAxis(log);
+        bRedoScale = false;
     }
 
-    sample_buf *buf;
+    bool bUpdateBars = false;
+
+    sample_buf *buf = nullptr;
     while(recQueue->front(&buf))
     {
         recQueue->pop();
 
-        if (q[0]==nullptr)
-        {
-            q[0] = buf;
-        }
-        else if (q[1]==nullptr)
-        {
-            q[1] = buf;
-        }
-        else
-        {
-            freeQueue->push(q[0]);
-            q[0]=q[1];
-            q[1] = buf;
+        //queue audio chunks
+        audioFttQueue.push(buf);
+        audioFttQueueTotalSize += AU_LEN(buf->cap_);
 
-            offset -= AU_LEN(buf->cap_);
-        }
-
-        while(chunkLoader(q[0], q[1], offset))
+        //if we have enough data queued process the fft
+        while (audioFttQueueTotalSize >= pSpectrum->getFFTLength() + offset)
         {
+            PrepareBuffer(offset);
+
             pSpectrum->doFFT();
             pSpectrum->computePowerFFT(decay);
             pScaleLog->Build(0,0);
             drawWaterFallLine(info, waterFallRaw, pixels);
-            offset += pSpectrum->getFFTLength()*timeOverlap;
+            bUpdateBars = true;
 
+            // advance waterfall
             waterFallRaw+=1;
             if (waterFallRaw >= info->height)
                 waterFallRaw=barsHeight;
-        }
 
-        drawSpectrumBars(info, pixels,barsHeight);
+            offset += pSpectrum->getFFTLength()*timeOverlap;
+
+            {
+                // return processed chunks
+                sample_buf *front = nullptr;
+                audioFttQueue.front(&front);
+                assert(front);
+                int frontSize = AU_LEN(front->cap_);
+                while (offset >= frontSize) {
+                    audioFttQueue.pop();
+                    freeQueue->push(front);
+                    offset -= frontSize;
+                    audioFttQueueTotalSize -= frontSize;
+                }
+            }
+        }
+    }
+
+    if (bUpdateBars) {
+        drawSpectrumBars(info, pixels, barsHeight);
     }
 }
+
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWithAudio(JNIEnv * env, jclass obj)
 {
@@ -536,7 +597,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetFftLength(JNIEnv * env, jclass obj, jint  fftLength)
 {
+    delete pSpectrum;
     pSpectrum = new myFFT(fftLength);
+    bRedoScale = true;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetFftLength(JNIEnv * env, jclass obj)
@@ -557,19 +620,37 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetOverlap
     timeOverlap = timeOverlap_;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetDecay(JNIEnv * env, jclass obj, jfloat decay_)
-{
-    decay = decay_;
-}
-
 extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetOverlap(JNIEnv * env, jclass obj)
 {
     return timeOverlap;
 }
 
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetDecay(JNIEnv * env, jclass obj, jfloat decay_)
+{
+    decay = decay_;
+}
+
+
 extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetDecay(JNIEnv * env, jclass obj)
 {
     return decay;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetFrequencyLogarithmicAxis(JNIEnv * env, jclass obj, jboolean bLogarithmic)
+{
+    if (pScaleLog==nullptr)
+        return;
+
+    pScaleLog->SetFrequencyLogarithmicAxis(bLogarithmic);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Spectrogram_GetFrequencyLogarithmicAxis(JNIEnv * env, jclass obj, jboolean bLogarithmic)
+{
+    if (pScaleLog==nullptr)
+        return false;
+
+    return pScaleLog->GetFrequencyLogarithmicAxis();
 }
 
 extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_FreqToX(JNIEnv * env, jclass obj, double freq)
@@ -591,7 +672,7 @@ extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_XToFreq(J
 extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Spectrogram_SetMinMaxFreqs(JNIEnv * env, jclass obj, double min, double max)
 {
     if (pScaleLog) {
-        pScaleLog->SetMinMax(min, max);
+        //pScaleLog->SetMinMax(min, max);
     }
 
     return pScaleLog!=nullptr;

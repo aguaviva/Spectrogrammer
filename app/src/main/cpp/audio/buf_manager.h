@@ -113,6 +113,14 @@ class ProducerConsumerQueue {
     });
   }
 
+    // front out the queue, but not pop-out
+    bool peek(T* out_item, int index) {
+      return peek([&](T* ptr) -> bool {
+          *out_item = *ptr;
+          return true;
+      }, index);
+    }
+
   void pop(void) {
     int readptr = read_.load(std::memory_order_relaxed);
     ++readptr;
@@ -132,9 +140,25 @@ class ProducerConsumerQueue {
       result = true;
       reader(buffer_.get() + (readptr % size_));
     }
-
-    return result;
+     return result;
   }
+
+    template <typename F>
+    bool peek(const F& reader, int index) {
+      bool result = false;
+
+      int writeptr = write_.load(std::memory_order_acquire);
+      int readptr = read_.load(std::memory_order_relaxed) + index;
+
+      // As above, wraparound is ok
+      int available = (int)(writeptr - readptr);
+      if (available >= 1) {
+        result = true;
+        reader(buffer_.get() + (readptr % size_));
+      }
+      return result;
+    }
+
   uint32_t size(void) {
     int writeptr = write_.load(std::memory_order_acquire);
     int readptr = read_.load(std::memory_order_relaxed);
