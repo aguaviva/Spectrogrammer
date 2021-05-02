@@ -36,4 +36,26 @@
         android:layout_height="wrap_content"
         android:max="100" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/fft_size" />
+
+    <SeekBar
+        android:id="@+id/fft_size"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="5" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/x_axis_scale_type" />
+
+    <Switch
+        android:id="@+id/x_axis_scale_logarithmic"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/logarithmic" />
+
 </LinearLayout>

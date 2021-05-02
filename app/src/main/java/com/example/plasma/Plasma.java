@@ -31,11 +31,13 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.AttributeSet;
+import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -48,29 +50,13 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 
 import static android.Manifest.permission.RECORD_AUDIO;
+import static android.provider.Settings.Global.getString;
 
 public class Plasma  extends AppCompatActivity
 {
-    // load our native library
-    static {
-        System.loadLibrary("plasma");
-    }
-
-    private static native void createSLEngine(int sampleRate, int framesPerBuf);
-    private static native void createAudioRecorder();
-    private static native void deleteAudioRecorder();
-    private static native void startPlay();
-    private static native void stopPlay();
-    private static native void pausePlay();
-    private static native void deleteSLEngine();
-
-    private static native void renderPlasmaSetOverlap(float percentage);
-    private static native void renderPlasmaDecay(float percentage);
-
     private static final int PERMISSION_REQUEST_CODE = 200;
 
-    float fft_overlap = -1;
-    float bars_decay = -1;
+    PlasmaView plasmaView;
 
     // Called when the activity is first created.
     @Override
@@ -84,47 +70,46 @@ public class Plasma  extends AppCompatActivity
             requestPermissions(new String[]{RECORD_AUDIO}, PERMISSION_REQUEST_CODE);
         }
 
-        AudioManager myAudioMgr = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        int nativeSampleRate  =  Integer.parseInt(myAudioMgr.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE));
-        int  nativeSampleBufSize = Integer.parseInt(myAudioMgr.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER));
-        int recBufSize = AudioRecord.getMinBufferSize(nativeSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-
-        createSLEngine(nativeSampleRate, nativeSampleBufSize*4);
-        createAudioRecorder();
-        startPlay();
+        Audio.onCreate((AudioManager) getSystemService(Context.AUDIO_SERVICE));
 
         setContentView(R.layout.layout);
         android.support.v7.widget.Toolbar myToolbar = (android.support.v7.widget.Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(myToolbar);
 
+        plasmaView = (PlasmaView)findViewById(R.id.plasmaView);
+
         final Switch switchAB = (Switch)findViewById(R.id.start_stop_switch);
         switchAB.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                pausePlay();
+                Audio.pausePlay();
              }
         });
 
         //load preferences
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
-        fft_overlap = sharedPref.getFloat(getString(R.string.fft_overlap), 0.5f);
-        bars_decay = sharedPref.getFloat(getString(R.string.bars_decay), 0.9f);
-        renderPlasmaSetOverlap(fft_overlap);
-        renderPlasmaDecay(bars_decay);
+        Spectrogram.SetOverlap(sharedPref.getFloat(getString(R.string.fft_overlap), 0.5f));
+        Spectrogram.SetDecay(sharedPref.getFloat(getString(R.string.bars_decay), 0.9f));
+        Spectrogram.SetFftLength(sharedPref.getInt(getString(R.string.fft_size), 4096));
+        Spectrogram.SetFrequencyLogarithmicAxis(sharedPref.getBoolean(getString(R.string.frequency_logarithmic_axis), true));
+        Spectrogram.SetBarsHeight(200);
     }
 
     @Override
     protected  void onDestroy() {
+
         //save preferences
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putFloat(getString(R.string.fft_overlap), fft_overlap);
-        editor.putFloat(getString(R.string.bars_decay), bars_decay);
+        editor.putFloat(getString(R.string.fft_overlap), Spectrogram.GetOverlap());
+        editor.putFloat(getString(R.string.bars_decay), Spectrogram.GetDecay());
+        editor.putInt(getString(R.string.fft_size), Spectrogram.GetFftLength());
+        editor.putBoolean(getString(R.string.frequency_logarithmic_axis), Spectrogram.GetFrequencyLogarithmicAxis());
+        editor.apply();
         editor.commit();
 
-        stopPlay();
-        deleteAudioRecorder();
-        deleteSLEngine();
+        Audio.onDestroy();
+
         super.onDestroy();
     }
 
@@ -144,15 +129,14 @@ public class Plasma  extends AppCompatActivity
         LayoutInflater inflater = getLayoutInflater();
         View popupView =inflater.inflate(R.layout.settings_menu, null);
 
+        //--------------------------------
         SeekBar.OnSeekBarChangeListener listener = new SeekBar.OnSeekBarChangeListener() {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 switch(seekBar.getId()) {
-                    case R.id.fft_overlap:  fft_overlap = (float) progress / 100.0f; break;
-                    case R.id.bars_decay: bars_decay = (float) progress / 100.0f; break;
+                    case R.id.fft_overlap:  Spectrogram.SetOverlap((float) progress / 100.0f); break;
+                    case R.id.bars_decay: Spectrogram.SetDecay((float) progress / 100.0f); break;
+                    case R.id.fft_size:Spectrogram.SetFftLength(1<<(progress+8));break;
                 }
-
-                renderPlasmaSetOverlap(fft_overlap);
-                renderPlasmaDecay(bars_decay);
             }
 
             @Override
@@ -163,12 +147,27 @@ public class Plasma  extends AppCompatActivity
         };
 
         SeekBar seek1 = (SeekBar)popupView.findViewById(R.id.fft_overlap);
-        seek1.setProgress((int)(fft_overlap*100));
+        seek1.setProgress((int)(Spectrogram.GetOverlap()*100));
         seek1.setOnSeekBarChangeListener(listener);
         SeekBar seek2 = (SeekBar)popupView.findViewById(R.id.bars_decay);
-        seek2.setProgress((int)(bars_decay*100));
+        seek2.setProgress((int)(Spectrogram.GetDecay()*100));
         seek2.setOnSeekBarChangeListener(listener);
+        SeekBar seek3 = (SeekBar)popupView.findViewById(R.id.fft_size);
+        seek3.setProgress((int)(Math.log(Spectrogram.GetFftLength()) / Math.log(2))-8);
+        seek3.setOnSeekBarChangeListener(listener);
 
+        //--------------------------------
+        Switch.OnCheckedChangeListener SwitchListener = new Switch.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                Spectrogram.SetFrequencyLogarithmicAxis(isChecked);
+            }
+        };
+        Switch onOffSwitch = (Switch)popupView.findViewById(R.id.x_axis_scale_logarithmic);
+        onOffSwitch.setOnCheckedChangeListener(SwitchListener);
+        onOffSwitch.setChecked(Spectrogram.GetFrequencyLogarithmicAxis());
+
+        //--------------------------------
         boolean focusable = true;
         int width = LinearLayout.LayoutParams.MATCH_PARENT;
         int height = LinearLayout.LayoutParams.WRAP_CONTENT;
@@ -198,22 +197,20 @@ public class Plasma  extends AppCompatActivity
 
 // Custom view for rendering plasma.
 //
-// Note: suppressing lint wrarning for ViewConstructor since it is
+// Note: suppressing lint warning for ViewConstructor since it is
 //       manually set from the activity and not used in any layout.
 @SuppressLint("ViewConstructor")
 class PlasmaView extends View {
+
+    Spectrogram spectrogram;
+
     private Bitmap mBitmap = null;
     private long mStartTime;
     private Paint white, gray;
     private int barsHeight = 200;
+    Rect bars;
 
-    // implementend by libplasma.so
-
-    private static native int renderPlasma(Bitmap  bitmap, long time_ms);
-    private static native void renderPlasmaInit(int fftLength, int sampleRate, int barsHeight, float timeOverlap);
-    private static native float renderPlasmaXToFreq(double x);
-    private static native float renderPlasmaFreqToX(double freq);
-    private static native void ConnectWithAudio();
+    Viewport viewport = new Viewport();
 
     public PlasmaView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -227,6 +224,8 @@ class PlasmaView extends View {
         mStartTime = System.currentTimeMillis();
         int scaledSize = getResources().getDimensionPixelSize(R.dimen.font_size);
         white.setTextSize(scaledSize);
+
+        viewport.Init(this);
     }
 
     @Override
@@ -235,9 +234,8 @@ class PlasmaView extends View {
         if (w>0 && h>0)
         {
             mBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
-            renderPlasmaInit(1024*2*2, 48000, barsHeight, 0.1f);
-            ConnectWithAudio();
-
+            bars = new Rect(0, 0, mBitmap.getWidth(), barsHeight);
+            Spectrogram.ConnectWithAudio();
         }
         else
         {
@@ -247,43 +245,65 @@ class PlasmaView extends View {
 
     float x=0,y=0;
 
-    public boolean onTouchEvent(MotionEvent e) {
-        x = e.getX(0);
-        y = e.getY(0);
+    public boolean onTouchEvent(MotionEvent event)
+    {
+        //  no other handlers, then drag & scale
+        boolean b = viewport.onTouchEvent(event);
+        if (b == false)
+        {
+            x = event.getX(0);
+            y = event.getY(0);
+        }
+
         return true;
     }
 
-    @Override protected void onDraw(Canvas canvas) {
 
-        if (mBitmap != null) {
-                int currentRow = renderPlasma(mBitmap, System.currentTimeMillis() - mStartTime);
-                if (currentRow>=0) {
-                    // draw bars
-                    canvas.drawBitmap(mBitmap, new Rect(0, 0, mBitmap.getWidth(), barsHeight), new Rect(0, 0, mBitmap.getWidth(), barsHeight), null);
+    @Override
+    protected void onDraw(Canvas canvas) {
+        float height = (float) getHeight();
+        float width = (float) getWidth();
 
-                    // draw waterfall
-                    if (currentRow > barsHeight)
-                        canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), barsHeight + 1), new Rect(0, barsHeight, mBitmap.getWidth(), currentRow), null);
-                    canvas.drawBitmap(mBitmap, new Rect(0, mBitmap.getHeight(), mBitmap.getWidth(), currentRow), new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), null);
-                }
+        canvas.save();
+        canvas.translate(viewport.GetPosX(), 0);
+        canvas.scale(viewport.GetScaleX(), 1);
 
+        if (mBitmap != null)
+        {
+            int currentRow = Spectrogram.Update(mBitmap, System.currentTimeMillis() - mStartTime);
+            if (currentRow>=0) {
+                // draw bars
+                canvas.drawBitmap(mBitmap, bars, bars, null);
 
-            canvas.drawLine(0, 0, (float) canvas.getWidth(), (float) canvas.getHeight(), gray);
+                // draw waterfall
+                if (currentRow > barsHeight)
+                    canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), barsHeight + 1), new Rect(0, barsHeight, mBitmap.getWidth(), currentRow), null);
+                canvas.drawBitmap(mBitmap, new Rect(0, mBitmap.getHeight(), mBitmap.getWidth(), currentRow), new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), null);
+            }
 
-            String str = String.format("%d Hz", (int)renderPlasmaXToFreq(x));
+            String str = String.format("%d Hz", (int)Spectrogram.XToFreq(x));
             canvas.drawText(str, x, y-200, white);
-            canvas.drawLine(x,0,x, (float)canvas.getHeight(), white);
+            canvas.drawLine(x,0,x, height, white);
 
+            // draw time graphs
+            float delta = (48000.0f/(Spectrogram.GetFftLength()*Spectrogram.GetOverlap()));
+            for(int i=0;i<50;i++)
+            {
+                float yy = y - i*delta;
+                canvas.drawLine(x-20, yy, x+20, yy, white);
+            }
+
+            // draw freq marks
             {
                 float x;
-                x = renderPlasmaFreqToX(10);
-                canvas.drawLine(x, 0, x, (float) canvas.getHeight(), gray);
-                x = renderPlasmaFreqToX(100);
-                canvas.drawLine(x, 0, x, (float) canvas.getHeight(), gray);
-                x = renderPlasmaFreqToX(1000);
-                canvas.drawLine(x, 0, x, (float) canvas.getHeight(), gray);
-                x = renderPlasmaFreqToX(10000);
-                canvas.drawLine(x, 0, x, (float) canvas.getHeight(), gray);
+                x = Spectrogram.FreqToX(10);
+                canvas.drawLine(x, 0, x, height, gray);
+                x = Spectrogram.FreqToX(100);
+                canvas.drawLine(x, 0, x, height, gray);
+                x = Spectrogram.FreqToX(1000);
+                canvas.drawLine(x, 0, x, height, gray);
+                x = Spectrogram.FreqToX(10000);
+                canvas.drawLine(x, 0, x, height, gray);
             }
         }
 
