@@ -1,6 +1,11 @@
+#include <math.h>
 //
 // Created by amdev02 on 4/27/2021.
 //
+
+double linear_to_sRGB(double x) {
+    return (x <= 0.0031308) ? (x * 12.92) : (1.055 * pow(x, 1 / 2.4) - 0.055);
+}
 
 static float _magma_data[256][3]  = {
         {0.001462, 0.000466, 0.013866},

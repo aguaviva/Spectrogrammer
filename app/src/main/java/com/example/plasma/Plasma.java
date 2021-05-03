@@ -282,9 +282,9 @@ class PlasmaView extends View {
                 canvas.drawBitmap(mBitmap, bars, bars, null);
 
                 // draw waterfall
-                if (currentRow > barsHeight)
-                    canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), barsHeight + 1), new Rect(0, barsHeight, mBitmap.getWidth(), currentRow), null);
-                canvas.drawBitmap(mBitmap, new Rect(0, mBitmap.getHeight(), mBitmap.getWidth(), currentRow), new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), null);
+                int topHalf = (barsHeight + 1) + mBitmap.getHeight() - currentRow;
+                canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), new Rect(0, barsHeight + 1, mBitmap.getWidth(), topHalf), null);
+                canvas.drawBitmap(mBitmap, new Rect(0, barsHeight + 1, mBitmap.getWidth(), currentRow), new Rect(0, topHalf, mBitmap.getWidth(), mBitmap.getHeight()), null);
             }
 
             String str = String.format("%d Hz", (int)Spectrogram.XToFreq(x));

@@ -555,16 +555,17 @@ static void fill_plasma( AndroidBitmapInfo*  info, void*  pixels) {
         {
             PrepareBuffer(offset);
 
+            // advance waterfall
+            waterFallRaw-=1;
+            if (waterFallRaw < barsHeight)
+                waterFallRaw=info->height;
+
             pSpectrum->doFFT();
             pSpectrum->computePowerFFT(decay);
             pScaleLog->Build(0,0);
             drawWaterFallLine(info, waterFallRaw, pixels);
             bUpdateBars = true;
 
-            // advance waterfall
-            waterFallRaw+=1;
-            if (waterFallRaw >= info->height)
-                waterFallRaw=barsHeight;
 
             offset += pSpectrum->getFFTLength()*timeOverlap;
 
