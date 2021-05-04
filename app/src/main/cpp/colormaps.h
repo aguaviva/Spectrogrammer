@@ -5,6 +5,6 @@
 #ifndef BITMAP_PLASMA_COLORMAPS_H
 #define BITMAP_PLASMA_COLORMAPS_H
 
-float *GetMagma(int i);
+uint16_t GetMagma(int i);
 
 #endif //BITMAP_PLASMA_COLORMAPS_H

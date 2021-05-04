@@ -14,7 +14,7 @@ set(DISABLE_FORTRAN OFF)
 add_subdirectory(fftw-3.3.9)
 INCLUDE_DIRECTORIES(fftw-3.3.9/api)
 
-add_library(plasma SHARED plasma.cpp colormaps.cpp)
+add_library(plasma SHARED plasma.cpp colormaps.cpp multithreadedUpdates.cpp scale.cpp)
 
 TARGET_LINK_LIBRARIES(plasma audio fftw3)
 

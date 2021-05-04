@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <fftw3.h>
 #include "colormaps.h"
+#include "scale.h"
 #ifdef ANDROID
 #include "audio_common.h"
 #include <jni.h>
@@ -34,46 +35,6 @@
 #define AU_FORMAT int16_t
 #define AU_LEN(l) (l/2)
 #define AU_CONVERT2DOUBLE(v) ((double)v)
-
-static uint16_t make565(uint16_t red, uint16_t green, uint16_t blue)
-{
-    return (uint16_t)( ((red   << 8) & 0xf800) | ((green << 3) & 0x07e0) | ((blue  >> 3) & 0x001f) );
-}
-
-uint16_t getHeatMapColor(float value)
-{
-#if 0
-    //const int NUM_COLORS = 6;
-    //static float color[NUM_COLORS][3] = { {0,0,0}, {0,0,1}, {0,1,1}, {0,1,0}, {1,1,0}, {1,0,0} };
-    const int NUM_COLORS = 4;
-    static float color[NUM_COLORS][3] = { {0,0,0}, {0,0,.5}, {.5,0,0}, {1,1,1} };
-
-    int idx1;        // |-- Our desired color will be between these two indexes in "color".
-    int idx2;        // |
-    float fractBetween = 0;  // Fraction between "idx1" and "idx2" where our value is.
-
-    if(value <= 0)       {  idx1 = idx2 = 0;            }    // accounts for an input <=0
-    else if(value >= 1)  {  idx1 = idx2 = NUM_COLORS-1; }    // accounts for an input >=0
-    else
-    {
-        value = value * (NUM_COLORS-1);        // Will multiply value by .
-        idx1  = floor(value);                  // Our desired color will be after this index.
-        idx2  = idx1+1;                        // ... and before this index (inclusive).
-        fractBetween = value - float(idx1);    // Distance between the two indexes (0-1).
-    }
-
-    float red   = (color[idx2][0] - color[idx1][0])*fractBetween + color[idx1][0];
-    float green = (color[idx2][1] - color[idx1][1])*fractBetween + color[idx1][1];
-    float blue  = (color[idx2][2] - color[idx1][2])*fractBetween + color[idx1][2];
-#else
-    float *rgb = GetMagma(value*255);
-    float red   =rgb[0];
-    float green =rgb[1];
-    float blue  =rgb[2];
-#endif
-
-    return make565(red*255, green*255, blue*255);
-}
 
 double  convertToDecibels(double v, double ref)
 {
@@ -94,49 +55,10 @@ AU_FORMAT DoubleToUint16(double v)
     return (AU_FORMAT)v;
 }
 
-double lerp( double t, double min, double max)
-{
-    return min*(1.0-t) + max*t;
-}
-
-double unlerp( double min, double max, double x)
-{
-    return (x - min)/(max - min);
-}
-
-double clamp(double v, double min, double max)
-{
-    if (v<min)
-        return min;
-    if  (v>max)
-        return max;
-    return v;
-}
 double maxx(double a, double b)
 {
     return (a>b)? a:b;
 }
-
-class ScaleLog {
-    double a,b;
-public:
-
-    void init(double maxIdx,double minFreq, double maxFreq)
-    {
-        a = minFreq;
-        b = log10(maxFreq/a)/maxIdx;
-    }
-
-    double forward(double x) const
-    {
-        return (a * pow(10, b * x));
-    }
-
-    double backward(double v) const
-    {
-        return log10(v/a)/b;
-    }
-};
 
 //////////////////////////////////////////////////////
 
@@ -260,10 +182,8 @@ class ScaleBuffer
     double m_sampleRate;
     int m_binCount;
     bool m_useLogY = true;
-    bool m_useLogX = true;
 
-    //ScaleLog scaleXtoBin = ScaleLog();
-    ScaleLog scaleXtoFreq = ScaleLog();
+    Scale scaleXtoFreq;
 
 public:
     ScaleBuffer(myFFT *pFFT, int width, double sampleRate)
@@ -274,7 +194,7 @@ public:
         m_data = (double *) malloc(sizeof(double) * m_width);
         m_binCount = pFFT->getBins();
 
-        initScale(width, true);
+        initScale(width);
     }
 
     ~ScaleBuffer()
@@ -282,23 +202,19 @@ public:
         free(m_data);
     }
 
-    void initScale(int width, bool bLogarithmic)
+    void initScale(int width)
     {
-        m_useLogX = bLogarithmic;
-
-        //scaleXtoBin.init(width,100, m_binCount);
         scaleXtoFreq.init(width,100,  m_sampleRate/2);
     }
 
     void SetFrequencyLogarithmicAxis(bool bLogarithmic)
     {
-        m_useLogX = bLogarithmic;
-        initScale(m_width, bLogarithmic);
+        scaleXtoFreq.setLogarithmic(bLogarithmic);
     }
 
     bool GetFrequencyLogarithmicAxis()
     {
-        return m_useLogX;
+        return scaleXtoFreq.getLogarithmic();
     }
 
     int FreqToBin(double freq) const
@@ -309,18 +225,12 @@ public:
 
     double XtoFreq(double x) const
     {
-        if (m_useLogX)
-            return scaleXtoFreq.forward(x);
-        else
-            return x*(m_sampleRate/2.0)/m_width;
+        return scaleXtoFreq.forward(x);
     }
 
     double FreqToX(double freq) const
     {
-        if (m_useLogX)
-            return scaleXtoFreq.backward(freq);
-        else
-            return (freq*m_width)/(m_sampleRate/2.0);
+        return scaleXtoFreq.backward(freq);
     }
 
     void Build(double min, double max)
@@ -397,7 +307,7 @@ ScaleBuffer *pScaleLog = nullptr;
 
 uint16_t GetColor(int x)
 {
-    return getHeatMapColor(pScaleLog->GetNormalizedData(x));
+    return GetMagma(pScaleLog->GetNormalizedData(x)*255);
 }
 
 void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels)

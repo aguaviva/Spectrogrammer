@@ -69,7 +69,7 @@ __inline__ uint64_t GetSystemTicks() {
 #define ENGINE_SERVICE_MSG_RETRIEVE_DUMP_BUFS 2
 #define ENGINE_SERVICE_MSG_RECORDED_AUDIO_AVAILABLE 3
 typedef bool (*ENGINE_CALLBACK)(void* pCTX, uint32_t msg, void* pData);
-
+void SetRecorderCallback(ENGINE_CALLBACK callback);
 /*
  * flag to enable file dumping
  */

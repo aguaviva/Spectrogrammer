@@ -89,6 +89,12 @@ void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ
   *pRecQ = engine.recBufQueue_;
 }
 
+void SetRecorderCallback(ENGINE_CALLBACK callback)
+{
+  engine.recorder_->RegisterCallback(callback, (void *)&engine);
+}
+
+
 extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioRecorder(JNIEnv *env, jclass type) {
   SampleFormat sampleFormat;
   memset(&sampleFormat, 0, sizeof(sampleFormat));
@@ -104,8 +110,6 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioR
   }
   engine.recorder_->SetBufQueues(engine.freeBufQueue_, engine.recBufQueue_);
   engine.recorder_->RegisterCallback(EngineService, (void *)&engine);
-
-  //SetBufQueues(engine.fastPathSampleRate_, engine.freeBufQueue_, engine.recBufQueue_);
   return JNI_TRUE;
 }
 

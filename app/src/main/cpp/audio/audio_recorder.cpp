@@ -86,13 +86,18 @@ AudioRecorder::AudioRecorder(SampleFormat *sampleFormat, SLEngineItf slEngine)
   SLASSERT(result);
 
 
-  // Configure the voice recognition preset which has no
-  // signal processing for lower latency.
+  // Configure the voice recognition preset which has no signal processing for lower latency.
   SLAndroidConfigurationItf inputConfig;
   result = (*recObjectItf_)->GetInterface(recObjectItf_, SL_IID_ANDROIDCONFIGURATION, &inputConfig);
   if (SL_RESULT_SUCCESS == result) {
     SLuint32 presetValue = SL_ANDROID_RECORDING_PRESET_VOICE_RECOGNITION;
     (*inputConfig)->SetConfiguration(inputConfig, SL_ANDROID_KEY_RECORDING_PRESET, &presetValue, sizeof(SLuint32));
+  }
+
+  // set low latency mode
+  if (SL_RESULT_SUCCESS == result) {
+    SLuint32 presetValue = SL_ANDROID_PERFORMANCE_LATENCY ;
+    (*inputConfig)->SetConfiguration(inputConfig, SL_ANDROID_KEY_PERFORMANCE_MODE, &presetValue, sizeof(SLuint32));
   }
 
   result = (*recObjectItf_)->Realize(recObjectItf_, SL_BOOLEAN_FALSE);
