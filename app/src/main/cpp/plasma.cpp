@@ -18,7 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <fftw3.h>
+#include "fftw3.h"
 #include "colormaps.h"
 #include "scale.h"
 #ifdef ANDROID
@@ -191,7 +191,7 @@ public:
         m_pFFT = pFFT;
         m_width = width;
         m_sampleRate = sampleRate;
-        m_data = (double *) malloc(sizeof(double) * m_width);
+        m_data = (double *)malloc(sizeof(double) * m_width);
         m_binCount = pFFT->getBins();
 
         initScale(width);
@@ -212,7 +212,7 @@ public:
         scaleXtoFreq.setLogarithmic(bLogarithmic);
     }
 
-    bool GetFrequencyLogarithmicAxis()
+    bool GetFrequencyLogarithmicAxis() const
     {
         return scaleXtoFreq.getLogarithmic();
     }

@@ -16,7 +16,7 @@ class Scale {
 
 public:
     void setLogarithmic(bool bLogarithmic_) { bLogarithmic = bLogarithmic_;}
-    bool getLogarithmic() { return bLogarithmic; }
+    bool getLogarithmic() const { return bLogarithmic; }
     void init(double maxIdx,double minFreq, double maxFreq);
     double forward(double x) const;
     double backward(double v) const;
