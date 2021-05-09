@@ -5,7 +5,6 @@
     <string name="green_string">green</string>
     <string name="accept">Accept</string>
     <string name="cancel">Cancel</string>
-    <string name="preference_file_key">com.example.myapp.PREFERENCE_FILE_KEY</string>
     <string name="fft_overlap">FFT overlap</string>
     <string name="bars_decay">Bars decay</string>
     <string name="fft_size">FFT size</string>

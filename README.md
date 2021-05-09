@@ -7,7 +7,9 @@ Android app that shows a spectrogram
  - Log/Linear scales
  - Configurable FFT overlap
  - Vertical bars smoothing 
+ - Pan & Zoom
  - Measuring cursor 
+ - Instruments overlay for piano and guitar
 
 ## Screenshots
 

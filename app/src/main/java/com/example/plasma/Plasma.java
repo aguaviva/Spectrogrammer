@@ -34,7 +34,9 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import android.provider.MediaStore;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -47,9 +49,13 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.view.Display;
 import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.Switch;
 
@@ -90,27 +96,30 @@ public class Plasma  extends AppCompatActivity
              }
         });
 
+        final CheckBox measure = (CheckBox)findViewById(R.id.measureCheckBox);
+        measure.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                plasmaView.SetMeasuring(isChecked);
+            }
+        });
+
+
+        final Button preferencesButton = (Button)findViewById(R.id.preferencesButton);
+        final AppCompatActivity app = this;
+        preferencesButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                ConfigDialog.onCreateDialog(app);
+            }
+        });
         //load preferences
-        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
-        Spectrogram.SetOverlap(sharedPref.getFloat(getString(R.string.fft_overlap), 0.5f));
-        Spectrogram.SetDecay(sharedPref.getFloat(getString(R.string.bars_decay), 0.9f));
-        Spectrogram.SetFftLength(sharedPref.getInt(getString(R.string.fft_size), 4096));
-        Spectrogram.SetFrequencyLogarithmicAxis(sharedPref.getBoolean(getString(R.string.frequency_logarithmic_axis), true));
-        Spectrogram.SetBarsHeight(200);
+        ConfigDialog.LoadPreferences(this);
     }
 
     @Override
     protected  void onDestroy() {
 
-        //save preferences
-        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putFloat(getString(R.string.fft_overlap), Spectrogram.GetOverlap());
-        editor.putFloat(getString(R.string.bars_decay), Spectrogram.GetDecay());
-        editor.putInt(getString(R.string.fft_size), Spectrogram.GetFftLength());
-        editor.putBoolean(getString(R.string.frequency_logarithmic_axis), Spectrogram.GetFrequencyLogarithmicAxis());
-        editor.apply();
-        editor.commit();
+        ConfigDialog.SavePreferences(this);
 
         Audio.onDestroy();
 
@@ -126,78 +135,6 @@ public class Plasma  extends AppCompatActivity
                 }
         }
     }
-
-                    //@Override
-    public void onCreateDialog(View view) {
-
-        LayoutInflater inflater = getLayoutInflater();
-        View popupView =inflater.inflate(R.layout.settings_menu, null);
-
-        //--------------------------------
-        SeekBar.OnSeekBarChangeListener listener = new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                switch(seekBar.getId()) {
-                    case R.id.fft_overlap:  Spectrogram.SetOverlap((float) progress / 100.0f); break;
-                    case R.id.bars_decay: Spectrogram.SetDecay((float) progress / 100.0f); break;
-                    case R.id.fft_size:Spectrogram.SetFftLength(1<<(progress+8));break;
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
-        };
-
-        SeekBar seek1 = (SeekBar)popupView.findViewById(R.id.fft_overlap);
-        seek1.setProgress((int)(Spectrogram.GetOverlap()*100));
-        seek1.setOnSeekBarChangeListener(listener);
-        SeekBar seek2 = (SeekBar)popupView.findViewById(R.id.bars_decay);
-        seek2.setProgress((int)(Spectrogram.GetDecay()*100));
-        seek2.setOnSeekBarChangeListener(listener);
-        SeekBar seek3 = (SeekBar)popupView.findViewById(R.id.fft_size);
-        seek3.setProgress((int)(Math.log(Spectrogram.GetFftLength()) / Math.log(2))-8);
-        seek3.setOnSeekBarChangeListener(listener);
-
-        //--------------------------------
-        Switch.OnCheckedChangeListener SwitchListener = new Switch.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                Spectrogram.SetFrequencyLogarithmicAxis(isChecked);
-            }
-        };
-        Switch onOffSwitch = (Switch)popupView.findViewById(R.id.x_axis_scale_logarithmic);
-        onOffSwitch.setOnCheckedChangeListener(SwitchListener);
-        onOffSwitch.setChecked(Spectrogram.GetFrequencyLogarithmicAxis());
-
-        //--------------------------------
-        int width = LinearLayout.LayoutParams.MATCH_PARENT;
-        int height = LinearLayout.LayoutParams.WRAP_CONTENT;
-        final PopupWindow popupWindow = new PopupWindow(popupView, width, height);
-        popupWindow.setOutsideTouchable(true);
-        popupWindow.setFocusable(true);
-        popupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        popupWindow.showAtLocation(popupView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 0);
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.options_menu, menu);
-        return true;
-    }
-
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.settings:
-
-                onCreateDialog(item.getActionView());
-                return true;
-        }
-
-        return (super.onOptionsItemSelected(item));
-    }
-
 }
 
 
@@ -223,13 +160,14 @@ class PlasmaView extends View {
 
         white = new Paint();
         white.setColor(Color.WHITE);
-        gray = new Paint();
-        gray.setColor(Color.GRAY);
-        gray.setAlpha(128+64);
-
-        mStartTime = System.currentTimeMillis();
         int scaledSize = getResources().getDimensionPixelSize(R.dimen.font_size);
         white.setTextSize(scaledSize);
+
+        gray = new Paint();
+        gray.setColor(Color.GRAY);
+        gray.setAlpha(128 + 64);
+
+        mStartTime = System.currentTimeMillis();
 
         viewport.Init(this);
     }
@@ -250,17 +188,23 @@ class PlasmaView extends View {
     }
 
     float x=0,y=0;
+    boolean mMeasuring = false;
 
+    void SetMeasuring(boolean measuring)
+    {
+        mMeasuring = measuring;
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent event)
     {
-        //  no other handlers, then drag & scale
-        boolean b = viewport.onTouchEvent(event);
-        if (b == false)
-        {
+        if (mMeasuring) {
             x = event.getX(0);
             y = event.getY(0);
         }
-
+        else {
+            viewport.onTouchEvent(event);
+        }
         return true;
     }
 
@@ -271,8 +215,8 @@ class PlasmaView extends View {
         float width = (float) getWidth();
 
         canvas.save();
-        canvas.translate(viewport.GetPosX(), 0);
-        canvas.scale(viewport.GetScaleX(), 1);
+        canvas.translate(viewport.GetPos().x, 0);
+        canvas.scale(viewport.GetScale().x, 1);
 
         if (mBitmap != null)
         {
@@ -287,7 +231,14 @@ class PlasmaView extends View {
                 canvas.drawBitmap(mBitmap, new Rect(0, barsHeight + 1, mBitmap.getWidth(), currentRow), new Rect(0, topHalf, mBitmap.getWidth(), mBitmap.getHeight()), null);
             }
 
-            String str = String.format("%d Hz", (int)Spectrogram.XToFreq(x));
+        }
+        canvas.restore();
+
+        // Draw
+        if (mMeasuring)
+        {
+            float xx = viewport.fromScreenSpace(x);
+            String str = String.format("%d Hz", (int)Spectrogram.XToFreq(xx));
             canvas.drawText(str, x, y-200, white);
             canvas.drawLine(x,0,x, height, white);
 
@@ -299,20 +250,71 @@ class PlasmaView extends View {
                 canvas.drawLine(x-20, yy, x+20, yy, white);
             }
 
-            // draw freq marks
-            {
-                float x;
-                x = Spectrogram.FreqToX(10);
-                canvas.drawLine(x, 0, x, height, gray);
-                x = Spectrogram.FreqToX(100);
-                canvas.drawLine(x, 0, x, height, gray);
-                x = Spectrogram.FreqToX(1000);
-                canvas.drawLine(x, 0, x, height, gray);
-                x = Spectrogram.FreqToX(10000);
+        }
+
+
+
+        if (ConfigDialog.GetHorizontalAxis()==R.id.horizontalScaleLinear)
+        {
+            for (int i = 0; i < 48000/2; i+=1000) {
+                float x = Spectrogram.FreqToX(i);
+                x = viewport.toScreenSpace(x);
                 canvas.drawLine(x, 0, x, height, gray);
             }
         }
+        else if (ConfigDialog.GetHorizontalAxis()==R.id.horizontalScaleLogarithmic)
+        {
+            float d = 1;
+            for (int j=0;j<5;j++) {
+                for (int i = 0; i < 10; i++) {
+                    float x;
+                    x = Spectrogram.FreqToX(i*d);
+                    x = viewport.toScreenSpace(x);
+                    canvas.drawLine(x, 0, x, height, gray);
+                }
+                d*=10;
+            }
+        }
+        else if (ConfigDialog.GetHorizontalAxis()==R.id.horizontalScalePiano)
+        {
+            Rect bounds = new Rect();
+            for (int n = 1; n < 88; n++) {
+                float x = Spectrogram.FreqToX(Math.pow(2.0, (n - 49) / 12.0) * 440.0);
+                float x1 = Spectrogram.FreqToX(Math.pow(2.0, ((n + 1) - 49) / 12.0) * 440.0);
+
+                x = viewport.toScreenSpace(x);
+                x1 = viewport.toScreenSpace(x1);
+
+                canvas.drawLine(x, 0, x, height, gray);
+
+                String text = getNoteName(n);
+                white.getTextBounds(text, 0, text.length(), bounds);
+                if ((x1 - x) > bounds.width())
+                    canvas.drawText(text, x, 10 + bounds.height(), white);
+            }
+        }
+        else if (ConfigDialog.GetHorizontalAxis()==R.id.horizontalScaleGuitar)
+        {
+            Rect bounds = new Rect();
+            int [] notes = {20, 25, 30, 35, 39, 44};
+            for (int i = 1; i < notes.length; i++) {
+                float x = Spectrogram.FreqToX(Math.pow(2.0, (notes[i] - 49) / 12.0) * 440.0);
+                x = viewport.toScreenSpace(x);
+                canvas.drawLine(x, 0, x, height, gray);
+                String text = getNoteName(notes[i]);
+                white.getTextBounds(text, 0, text.length(), bounds);
+                canvas.drawText(text, x, 10 + bounds.height(), white);
+            }
+        }
+
 
         invalidate();
+    }
+
+    public static String getNoteName(int n) {
+        String[] notes = {"A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"};
+        int octave = (n + 8) / 12;
+        int noteIdx = (n - 1) % 12;
+        return notes[noteIdx] + String.valueOf(octave);
     }
 }

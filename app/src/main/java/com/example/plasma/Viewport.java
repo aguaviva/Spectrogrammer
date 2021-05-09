@@ -1,68 +1,162 @@
 package com.example.plasma;
 
 import android.content.Context;
-import android.view.GestureDetector;
+import android.graphics.PointF;
+import android.graphics.RectF;
+import android.util.SparseArray;
 import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
 import android.view.View;
 
 public class Viewport {
 
-    private View view = null;
-    private float PosX = 0;
-    private float ScaleX = 1;
-    private GestureDetector mGestureDetector;
-    private ScaleGestureDetector mScaleGestureDetector;
+    private SparseArray<PointF> mActivePointers = new SparseArray<PointF>();
+    ;
+    PointF lastPoint = new PointF();
+    private PointF lastDist = new PointF();
 
-    void Init(View view_)
-    {
-        view = view_;
-        Context context = view.getContext();
-        mScaleGestureDetector = new ScaleGestureDetector(context, mScaleGestureListener);
-        mGestureDetector = new GestureDetector(context, mGestureDetectorListener);
+    private View mView = null;
+    private PointF mTranslate = new PointF();
+    private PointF mScale  = new PointF(1,1);
+
+    private PointF mGnome = new PointF(0,0);
+
+    RectF mRect = new RectF();
+
+    void Init(View view_) {
+        mView = view_;
+        Context context = mView.getContext();
     }
 
-    float GetPosX() { return PosX; };
-    float GetScaleX() { return ScaleX; };
+    PointF GetPos() {
+        return mTranslate;
+    }
+
+    PointF GetScale() {
+        return mScale;
+    }
+
+    PointF getDistance(MotionEvent event)
+    {
+        //distance
+        float dx = event.getX(0)-event.getX(1);
+        float dy = event.getY(0)-event.getY(1);
+
+        return new PointF(dx,dy);
+    }
+
+    float toScreenSpace(float x)
+    {
+        return x * GetScale().x + GetPos().x;
+    }
+
+    float fromScreenSpace(float x)
+    {
+        return (x - GetPos().x) / GetScale().x;
+    }
+
 
     public boolean onTouchEvent(MotionEvent event)
     {
-        return false;
-        //boolean b1 =  mScaleGestureDetector.onTouchEvent(event);
-        //boolean b2 = mGestureDetector.onTouchEvent(event);
-        //return  b1 || b2;
+        // get pointer index from the event object
+        int pointerIndex = event.getActionIndex();
+
+        // get pointer ID
+        int pointerId = event.getPointerId(pointerIndex);
+
+        // get masked (not specific to a pointer) action
+        int maskedAction = event.getActionMasked();
+
+        switch (maskedAction) {
+
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN: {
+                // We have a new pointer. Lets add it to the list of pointers
+
+                PointF f = new PointF();
+                f.x = event.getX(pointerIndex);
+                f.y = event.getY(pointerIndex);
+                mActivePointers.put(pointerId, f);
+
+                if (mActivePointers.size()==2) {
+                    // average
+                    PointF midPoint = new PointF();
+                    for (int i = 0; i < 2; i++) {
+                        PointF point = mActivePointers.get(event.getPointerId(i));
+                        if (point != null) {
+                            midPoint.x += event.getX(i) / 2.0f;
+                            midPoint.y += event.getY(i) / 2.0f;
+                        }
+                    }
+                    lastPoint = midPoint;
+
+                    //distance
+                    lastDist = getDistance(event);
+                }
+                break;
+            }
+
+            case MotionEvent.ACTION_MOVE: { // a pointer was moved
+
+                if (mActivePointers.size()==2)
+                {
+                    // scale factor
+                    //
+                    PointF dist = getDistance(event);
+
+                    // midpoint
+                    //
+                    PointF midPoint = new PointF();
+                    for (int i = 0; i < 2; i++) {
+                        PointF point = mActivePointers.get(event.getPointerId(i));
+                        if (point != null)
+                        {
+                            point.x = event.getX(i);
+                            point.y = event.getY(i);
+                        }
+
+                        midPoint.x += point.x / 2.0f;
+                        midPoint.y += point.y / 2.0f;
+                    }
+
+                    //-----------------------------
+
+                    DragScale(midPoint, dist);
+                }
+
+
+                break;
+            }
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                mActivePointers.remove(pointerId);
+                break;
+            }
+        }
+        return true;
     }
 
-    // The scale listener, used for handling multi-finger scale gestures.
-    //
-    private final ScaleGestureDetector.OnScaleGestureListener mScaleGestureListener = new ScaleGestureDetector.SimpleOnScaleGestureListener()
+    private void DragScale(PointF focus, PointF distance)
     {
-        @Override
-        public boolean onScale(ScaleGestureDetector detector) {
-            float scale = detector.getScaleFactor();
-            float currSpanX = detector.getCurrentSpanX();
-            float currSpanY = detector.getCurrentSpanY();
+        // compute scale
+        float scaleX = distance.x/lastDist.x;
+        float scaleY = distance.y/lastDist.y;
+        lastDist.x = distance.x;
+        lastDist.y = distance.y;
 
-            float oldScaleFactorX = ScaleX;
-            ScaleX *= scale*scale;
+        // compute translation
+        float VelX= focus.x - lastPoint.x;
+        float VelY= focus.y - lastPoint.y;
+        lastPoint.x = focus.x;
+        lastPoint.y = focus.y;
 
-            float dx = detector.getFocusX()- PosX;
-            float dxSc = dx * ScaleX / oldScaleFactorX;
+        // apply scaling
 
-            PosX = detector.getFocusX() - dxSc;
+        mTranslate.x = (mTranslate.x -  focus.x)*scaleX + focus.x;
+        mTranslate.x += VelX;
 
-            view.invalidate();
-            return true;
-        }
-    };
+        mScale.x *= scaleX;
+    }
 
-    private final GestureDetector.SimpleOnGestureListener mGestureDetectorListener = new GestureDetector.SimpleOnGestureListener()
-    {
-        @Override
-        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            PosX -= distanceX;
-            view.invalidate();
-            return true;
-        }
-    };
 }

@@ -243,7 +243,7 @@ public:
         int x=0;
         int bin = FreqToBin(XtoFreq(x));
         m_data[x]=m_pFFT->getData(bin);
-
+        x++;
         for(; x < m_width; x++)
         {
             int binNext = FreqToBin(XtoFreq(x+1));

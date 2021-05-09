@@ -52,10 +52,35 @@
         android:layout_height="wrap_content"
         android:text="@string/x_axis_scale_type" />
 
-    <Switch
-        android:id="@+id/x_axis_scale_logarithmic"
+    <RadioGroup
+        android:id="@+id/horizontalScale"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/logarithmic" />
+        android:layout_height="match_parent"
+        android:orientation='horizontal'>
+
+        <RadioButton
+            android:id="@+id/horizontalScaleLinear"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Linear" />
+
+        <RadioButton
+            android:id="@+id/horizontalScaleLogarithmic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Logarithmic" />
+
+        <RadioButton
+            android:id="@+id/horizontalScalePiano"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Piano" />
+
+        <RadioButton
+            android:id="@+id/horizontalScaleGuitar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Guitar" />
+    </RadioGroup>
 
 </LinearLayout>
