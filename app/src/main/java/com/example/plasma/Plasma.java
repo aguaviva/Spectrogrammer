@@ -307,6 +307,7 @@ class PlasmaView extends View {
             }
         }
 
+        viewport.EnforceMinimumSize();
 
         invalidate();
     }

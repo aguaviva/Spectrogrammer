@@ -159,4 +159,24 @@ public class Viewport {
         mScale.x *= scaleX;
     }
 
+    private void setPos(float left, float right)
+    {
+        mTranslate.x = left;
+        mScale.x = (right-left)/mView.getWidth();
+    }
+
+    public void EnforceMinimumSize()
+    {
+        float left = toScreenSpace(0);
+        float right = toScreenSpace(mView.getWidth());
+
+        if (left>0)
+            left +=  (0 - left)/2;
+
+        if (right<mView.getWidth())
+            right +=  (mView.getWidth() - right)/2;
+
+        setPos(left, right);
+    }
+
 }

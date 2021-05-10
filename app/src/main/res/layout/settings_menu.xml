@@ -59,6 +59,12 @@
         android:orientation='horizontal'>
 
         <RadioButton
+            android:id="@+id/horizontalScaleNone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="None" />
+
+        <RadioButton
             android:id="@+id/horizontalScaleLinear"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -68,7 +74,7 @@
             android:id="@+id/horizontalScaleLogarithmic"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Logarithmic" />
+            android:text="Log" />
 
         <RadioButton
             android:id="@+id/horizontalScalePiano"
