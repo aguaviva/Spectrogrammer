@@ -39,8 +39,8 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <com.example.plasma.PlasmaView
-        android:id="@+id/plasmaView"
+    <com.example.plasma.WaterfallView
+        android:id="@+id/WaterfallView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 

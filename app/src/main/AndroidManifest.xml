@@ -13,7 +13,7 @@
       android:configChanges="orientation|screenSize"
       android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
 
-    <activity android:name=".Plasma"
+    <activity android:name=".MainApp"
               android:label="@string/app_name">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
