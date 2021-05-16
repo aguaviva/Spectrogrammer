@@ -2,8 +2,11 @@
 Android app that shows a spectrogram
 
 ## Features
- - Low latency audio (uses openSL and native code)
- - Up to 8192 samples FFT (using FFTW)
+ - Low latency audio processing, uses
+     - Multithreaded native code
+     - OpenSL
+     - FFTW 
+ - Up to 8192 samples FFT
  - Log/Linear scales
  - Configurable FFT overlap
  - Vertical bars smoothing 
