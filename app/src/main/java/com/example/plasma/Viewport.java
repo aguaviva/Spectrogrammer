@@ -145,6 +145,8 @@ public class Viewport {
         lastDist.x = distance.x;
         lastDist.y = distance.y;
 
+        scaleX = (float)Math.max(scaleX,0.5f);
+
         // compute translation
         float VelX= focus.x - lastPoint.x;
         float VelY= focus.y - lastPoint.y;

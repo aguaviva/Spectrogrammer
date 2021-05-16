@@ -16,9 +16,10 @@ public class WaterfallView extends View {
 
     private Bitmap mBitmap = null;
     private long mStartTime;
-    private Paint white, gray;
+    private Paint white, gray, drawPaint;
     private int barsHeight = 200;
     Rect bars;
+
 
     Viewport viewport = new Viewport();
 
@@ -34,6 +35,10 @@ public class WaterfallView extends View {
         gray.setColor(Color.GRAY);
         gray.setAlpha(128 + 64);
 
+        drawPaint = new Paint();
+        drawPaint.setAntiAlias(false);
+        drawPaint.setFilterBitmap(false);
+
         mStartTime = System.currentTimeMillis();
 
         viewport.Init(this);
@@ -46,7 +51,8 @@ public class WaterfallView extends View {
         {
             mBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
             bars = new Rect(0, 0, mBitmap.getWidth(), barsHeight);
-            Spectrogram.ConnectWithAudio();
+            //Spectrogram.ConnectWithAudio();
+            Spectrogram.ConnectWithAudioMT(mBitmap);
         }
         else
         {
@@ -87,17 +93,18 @@ public class WaterfallView extends View {
 
         if (mBitmap != null)
         {
-            int currentRow = Spectrogram.Update(mBitmap, System.currentTimeMillis() - mStartTime);
+            int currentRow = Spectrogram.Lock(mBitmap);
+            //int currentRow = Spectrogram.Update(mBitmap, System.currentTimeMillis() - mStartTime);
             if (currentRow>=0) {
                 // draw bars
-                canvas.drawBitmap(mBitmap, bars, bars, null);
+                canvas.drawBitmap(mBitmap, bars, bars, drawPaint);
 
                 // draw waterfall
                 int topHalf = (barsHeight + 1) + mBitmap.getHeight() - currentRow;
                 canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), new Rect(0, barsHeight + 1, mBitmap.getWidth(), topHalf), null);
                 canvas.drawBitmap(mBitmap, new Rect(0, barsHeight + 1, mBitmap.getWidth(), currentRow), new Rect(0, topHalf, mBitmap.getWidth(), mBitmap.getHeight()), null);
             }
-
+            Spectrogram.Unlock(mBitmap);
         }
         canvas.restore();
 

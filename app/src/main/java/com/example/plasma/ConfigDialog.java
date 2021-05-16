@@ -98,7 +98,7 @@ public class ConfigDialog {
         Spectrogram.SetOverlap(sharedPref.getFloat(app.getString(R.string.fft_overlap), 0.5f));
         Spectrogram.SetDecay(sharedPref.getFloat(app.getString(R.string.bars_decay), 0.9f));
         Spectrogram.SetFftLength(sharedPref.getInt(app.getString(R.string.fft_size), 4096));
-        SetHorizontalAxis(sharedPref.getInt(app.getString(R.string.frequency_logarithmic_axis), R.id.horizontalScaleLogarithmic));
+        SetHorizontalAxis(sharedPref.getInt(app.getString(R.string.horizontalScaleSelectedId), R.id.horizontalScaleLogarithmic));
         Spectrogram.SetBarsHeight(200);
     }
 
@@ -109,7 +109,7 @@ public class ConfigDialog {
         editor.putFloat(app.getString(R.string.fft_overlap), Spectrogram.GetOverlap());
         editor.putFloat(app.getString(R.string.bars_decay), Spectrogram.GetDecay());
         editor.putInt(app.getString(R.string.fft_size), Spectrogram.GetFftLength());
-        editor.putInt(app.getString(R.string.frequency_logarithmic_axis), GetHorizontalAxis());
+        editor.putInt(app.getString(R.string.horizontalScaleSelectedId), horizontalScaleSelectedId);
         editor.apply();
         editor.commit();
     }

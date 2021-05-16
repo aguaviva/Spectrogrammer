@@ -11,4 +11,6 @@
     <string name="x_axis_scale_type">X axis scale</string>
     <string name="logarithmic">logarithmic</string>
     <string name="frequency_logarithmic_axis">FrequencyLogarithmicAxis</string>
+    <string name="horizontalScaleLogarithmic">horizontalScaleLogarithmic</string>
+    <string name="horizontalScaleSelectedId">Horizontal Scale Selected Id</string>
 </resources>
