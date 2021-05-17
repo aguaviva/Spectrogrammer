@@ -20,6 +20,7 @@ public class WaterfallView extends View {
     private int barsHeight = 200;
     Rect bars;
 
+    int delay = 0;
 
     Viewport viewport = new Viewport();
 
@@ -81,7 +82,6 @@ public class WaterfallView extends View {
         return true;
     }
 
-
     @Override
     protected void onDraw(Canvas canvas) {
         float height = (float) getHeight();
@@ -107,6 +107,18 @@ public class WaterfallView extends View {
             Spectrogram.Unlock(mBitmap);
         }
         canvas.restore();
+
+
+
+        {
+            int dp = Spectrogram.GetDroppedFrames();
+            if (dp>0)
+                delay = 10;
+            if (delay>0) {
+                canvas.drawText("Overload!! Dropping audio frames", 10, 250, white);
+                delay--;
+            }
+        }
 
         // Draw
         if (mMeasuring)

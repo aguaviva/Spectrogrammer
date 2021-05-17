@@ -72,6 +72,8 @@ struct Context
     AudioQueue freeQueue{16};
     AudioQueue recQueue{16};
 
+    int droppedFrames = 0;
+
     AndroidBitmapInfo  info;
     void*              pixels;
     pthread_mutex_t    lock;
@@ -198,6 +200,16 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetMinMaxF
     //scaleLog.SetMinMax(min, max);
 }
 
+extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedFrames(JNIEnv * env, jclass obj)
+{
+    static int lastDroppedFrames = 0;
+    int dp = context.droppedFrames;
+    int res = dp - lastDroppedFrames;
+    lastDroppedFrames = dp;
+    return res;
+}
+
+
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWithAudioMT(JNIEnv * env, jclass obj, jobject bitmap)
 {
 
@@ -247,6 +259,16 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
             GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
 
             sample_buf *buf = nullptr;
+
+            //drop frames
+            while(context.recQueue.size()>2)
+            {
+                context.recQueue.front(&buf);
+                context.recQueue.pop();
+                context.freeQueue.push(buf);
+                context.droppedFrames++;
+            }
+
             while (pRecQueue->front(&buf)) {
                 pRecQueue->pop();
                 context.recQueue.push(buf);
@@ -277,14 +299,13 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_Lock(JNIEnv
 #ifndef MULTITHREADING
     ProcessChunk();
 #endif
-    int split = waterFallRaw;
     pthread_mutex_lock(&context.lock);
 
     drawSpectrumBars(&context.info, context.pixels, barsHeight, &scaleLog);
 
     AndroidBitmap_unlockPixels(env, bitmap);
 
-    return split;
+    return waterFallRaw;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Unlock(JNIEnv * env, jclass  obj, jobject bitmap)
