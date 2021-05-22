@@ -11,4 +11,3 @@ AU_FORMAT DoubleToUint16(double v)
     return (AU_FORMAT)v;
 }
 
-

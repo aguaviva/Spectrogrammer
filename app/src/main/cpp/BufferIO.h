@@ -38,7 +38,7 @@ public:
     int GetSize() { return m_size; }
 };
 
-typedef BufferIO<double> BufferIODouble;
+typedef BufferIO<float> BufferIODouble;
 typedef BufferIO<int> BufferIOInt;
 
 #endif

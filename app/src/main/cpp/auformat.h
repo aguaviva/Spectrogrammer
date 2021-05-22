@@ -4,6 +4,7 @@
 #define AU_FORMAT int16_t
 #define AU_LEN(l) (l/sizeof(int16_t))
 #define AU_CONVERT2DOUBLE(v) ((double)v)
+#define AU_CONVERT2FLOAT(v) ((float)v)
 
 
 double Uint16ToDouble(const AU_FORMAT *v);

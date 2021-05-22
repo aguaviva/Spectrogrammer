@@ -11,6 +11,7 @@ INCLUDE_DIRECTORIES(audio)
 
 set(BUILD_TESTS OFF)
 set(DISABLE_FORTRAN OFF)
+#set(ENABLE_FLOAT ON)
 add_subdirectory(fftw-3.3.9)
 INCLUDE_DIRECTORIES(fftw-3.3.9/api)
 

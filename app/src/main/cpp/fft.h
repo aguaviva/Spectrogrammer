@@ -16,9 +16,9 @@ class myFFT : public Processor
     fftw_complex *m_out = nullptr;
 
     int m_length;
-    double m_fftScaling;
+    float m_fftScaling;
     fftw_plan m_plan;
-    double m_sampleRate;
+    float m_sampleRate;
 
     void init(int length)
     {
@@ -51,7 +51,7 @@ public:
         deinit();
     }
 
-    void init(int length, double sampleRate)
+    void init(int length, float sampleRate)
     {
         m_sampleRate = sampleRate;
         deinit();
@@ -62,12 +62,12 @@ public:
 
     int getBins() const { return m_length/2; }
 
-    double hanning(int i) const
+    float hanning(int i) const
     {
         return .50 - .50 * cos((2 * M_PI * i) / (m_length - 1.0));
     }
 
-    double hamming(int i) const
+    float hamming(int i) const
     {
         return .54 - .46 * cos((2 * M_PI * i) / (m_length - 1.0));
     }
@@ -76,7 +76,7 @@ public:
     {
         for (int i = 0; i < length; i++)
         {
-            double val = Uint16ToDouble(&input[i]);
+            float val = Uint16ToDouble(&input[i]);
 
             int ii= i + offsetDest;
             val *= hamming(ii);
@@ -90,12 +90,12 @@ public:
     {
         fftw_execute(m_plan);
 
-        double totalPower = 0;
+        float totalPower = 0;
 
-        double *m_rout = m_pOutput->GetData();
+        float *m_rout = m_pOutput->GetData();
         for (int i = 0; i < getBins(); i++)
         {
-            double power = sqrt(m_out[i][REAL] * m_out[i][REAL] + m_out[i][IMAG] * m_out[i][IMAG]);
+            float power = sqrt(m_out[i][REAL] * m_out[i][REAL] + m_out[i][IMAG] * m_out[i][IMAG]);
             power *= (2 / m_fftScaling);
             m_rout[i] = m_rout[i] *decay + power*(1.0f-decay);
 
@@ -104,20 +104,20 @@ public:
     }
 
 
-    double bin2Freq(int bin) const
+    float bin2Freq(int bin) const
     {
         if (bin==0)
             return 0;
 
-        return (m_sampleRate * (double)bin) / (double) getProcessedLength();
+        return (m_sampleRate * (float)bin) / (float) getProcessedLength();
     }
 
-    double freq2Bin(double freq) const
+    float freq2Bin(float freq) const
     {
         if (freq==0)
             return 0;
 
-        return (freq * (double) getProcessedLength()) / m_sampleRate;
+        return (freq * (float) getProcessedLength()) / m_sampleRate;
     }
 };
 

@@ -18,8 +18,8 @@ public:
     virtual int getBins() const = 0;
     virtual void convertShortToFFT(const AU_FORMAT *input, int offsetDest, int length) = 0;
     virtual void computePower(float decay) = 0;
-    virtual double bin2Freq(int bin) const = 0;
-    virtual double freq2Bin(double freq) const = 0;
+    virtual float bin2Freq(int bin) const = 0;
+    virtual float freq2Bin(float freq) const = 0;
 
     BufferIODouble *getBufferIO() const
     {

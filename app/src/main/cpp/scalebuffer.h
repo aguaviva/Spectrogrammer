@@ -26,7 +26,7 @@ public:
         delete(m_pBins);
     }
 
-    void setOutputWidth(int outputWidth, double minfreq, double maxfreq)
+    void setOutputWidth(int outputWidth, float minfreq, float maxfreq)
     {
         delete (m_pOutput);
         m_pOutput = new BufferIODouble(outputWidth);
@@ -47,12 +47,12 @@ public:
         return scaleXtoFreq.getLogarithmic();
     }
 
-    double XtoFreq(double x) const
+    float XtoFreq(float x) const
     {
         return scaleXtoFreq.forward(x);
     }
 
-    double FreqToX(double freq) const
+    float FreqToX(float freq) const
     {
         return scaleXtoFreq.backward(freq);
     }
@@ -62,7 +62,7 @@ public:
         int *pBins = m_pBins->GetData();
         for(int x=0; x < m_pBins->GetSize(); x++)
         {
-            double freq = XtoFreq(x);
+            float freq = XtoFreq(x);
             int bin = (int)floor(pProc->freq2Bin(freq));
             pBins[x] = bin;
         }
@@ -73,8 +73,8 @@ public:
         //set bins to min value
         m_pOutput->clear();
 
-        double *input = pProc->getBufferIO()->GetData();
-        double *output = m_pOutput->GetData();
+        float *input = pProc->getBufferIO()->GetData();
+        float *output = m_pOutput->GetData();
         int *pBins = m_pBins->GetData();
 
         // set X axis
@@ -91,7 +91,7 @@ public:
             }
             else
             {
-                double v = 0;
+                float v = 0;
                 for (int i = bin; i < binNext; i++)
                 {
                     v = std::max(input[i], v);
@@ -108,7 +108,7 @@ public:
             // log Y axis
             for (int i = 0; i < m_pOutput->GetSize(); i++)
             {
-                const double ref = 32768;
+                const float ref = 32768;
                 output[i] = convertToDecibels(output[i], ref);
                 output[i] = clamp(unlerp( -120, -20, output[i]), 0, 1);
             }
@@ -122,12 +122,12 @@ public:
         }
     }
 
-    double *GetData() const
+    float *GetData() const
     {
         return m_pOutput->GetData();
     }
 
-    double convertToDecibels(double v, double ref)
+    float convertToDecibels(float v, float ref)
     {
         if (v<=0.001)
             return -120;

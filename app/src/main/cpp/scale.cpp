@@ -1,17 +1,17 @@
 #include "scale.h"
 #include <cmath>
 
-double lerp( double t, double min, double max)
+float lerp( float t, float min, float max)
 {
     return min*(1.0-t) + max*t;
 }
 
-double unlerp( double min, double max, double x)
+float unlerp( float min, float max, float x)
 {
     return (x - min)/(max - min);
 }
 
-double clamp(double v, double min, double max)
+float clamp(float v, float min, float max)
 {
     if (v<min)
         return min;
@@ -22,7 +22,7 @@ double clamp(double v, double min, double max)
 
 //--------------------------
 
-void Scale::init(double maxIdx_,double minFreq_, double maxFreq_)
+void Scale::init(float maxIdx_,float minFreq_, float maxFreq_)
 {
     // Logarithmic
     a = minFreq_;
@@ -36,7 +36,7 @@ void Scale::init(double maxIdx_,double minFreq_, double maxFreq_)
     maxFreq = maxFreq_;
 }
 
-double Scale::forward(double x) const
+float Scale::forward(float x) const
 {
     if (bLogarithmic)
     {
@@ -48,7 +48,7 @@ double Scale::forward(double x) const
     }
 }
 
-double Scale::backward(double x)  const
+float Scale::backward(float x)  const
 {
     if (bLogarithmic)
     {

@@ -27,7 +27,7 @@ void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuf
     uint16_t*  line_end = line + info->width;
     uint32_t x = 0;
 
-    double *pData = pScaleLog->GetData();
+    float *pData = pScaleLog->GetData();
 
     if (line < line_end)
     {
@@ -55,7 +55,7 @@ void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuf
     }
 }
 
-void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, double val, int height)
+void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, float val, int height)
 {
     int y = 0;
 
@@ -77,7 +77,7 @@ void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, double val, int h
 void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBuffer *pScaleLog)
 {
     uint16_t *line = (uint16_t *)pixels;
-    double *pPower = pScaleLog->GetData();
+    float *pPower = pScaleLog->GetData();
     for (int x=0;x<info->width;x++)
     {
         drawSpectrumBar(info, line, (1.0-pPower[x]) * height, height);

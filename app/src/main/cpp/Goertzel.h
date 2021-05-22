@@ -99,21 +99,21 @@ public:
 
     void computePower(float decay)
     {
-        double *powerBuf = m_pOutput->GetData();
+        float *powerBuf = m_pOutput->GetData();
         for(int i=0;i<m_pOutput->GetSize();i++)
         {
-            double frequency = NoteToFreq(i+1);
-            double power = sqrt(goertzelFilter(inputBuf, m_length, frequency, m_sampleRate));
+            float frequency = NoteToFreq(i+1);
+            float power = sqrt(goertzelFilter(inputBuf, m_length, frequency, m_sampleRate));
             powerBuf[i] = power;
         }
     }
 
-    double bin2Freq(int bin) const
+    float bin2Freq(int bin) const
     {
         return NoteToFreq(bin +1);
     }
 
-    double freq2Bin(double freq) const
+    float freq2Bin(float freq) const
     {
         return FreqToNote(freq)-1;
     }
