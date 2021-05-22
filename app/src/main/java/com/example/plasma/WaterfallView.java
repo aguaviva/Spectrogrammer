@@ -52,7 +52,7 @@ public class WaterfallView extends View {
         {
             mBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
             bars = new Rect(0, 0, mBitmap.getWidth(), barsHeight);
-            //Spectrogram.ConnectWithAudio();
+            Spectrogram.SetMinMaxFreqs(w, 100,48000/2);
             Spectrogram.ConnectWithAudioMT(mBitmap);
         }
         else
@@ -107,8 +107,6 @@ public class WaterfallView extends View {
             Spectrogram.Unlock(mBitmap);
         }
         canvas.restore();
-
-
 
         {
             int dp = Spectrogram.GetDroppedFrames();

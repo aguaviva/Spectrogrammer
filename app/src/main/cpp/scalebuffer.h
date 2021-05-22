@@ -1,43 +1,40 @@
 #ifndef SCALEBUFFER_H
 #define SCALEBUFFER_H
 
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include <algorithm>
 #include "fft.h"
-#include "auformat.h"
+#include "Processor.h"
+#include "scale.h"
+#include "ScaleBuffer.h"
+#include "BufferIO.h"
 
 class ScaleBuffer
 {
-    myFFT *m_pFFT = nullptr;;
-    int m_width;
-    double *m_data = nullptr;;
-    double m_sampleRate;
-    int m_binCount;
+protected:
+    BufferIODouble *m_pOutput = nullptr;
     bool m_useLogY = true;
-
     Scale scaleXtoFreq;
+
+    BufferIOInt *m_pBins;
 
 public:
     ~ScaleBuffer()
     {
-        free(m_data);
+        delete(m_pOutput);
+        delete(m_pBins);
     }
 
-    void SetSamplerate(double sampleRate)
+    void setOutputWidth(int outputWidth, double minfreq, double maxfreq)
     {
-        m_sampleRate = sampleRate;
-    }
+        delete (m_pOutput);
+        m_pOutput = new BufferIODouble(outputWidth);
 
-    void SetFFT(myFFT *pFFT)
-    {
-        m_pFFT	= pFFT;
-    }
+        delete(m_pBins);
+        m_pBins = new BufferIOInt(outputWidth);
 
-    void SetWidth(int width)
-    {
-        m_width = width;
-        free(m_data);
-        m_data = (double *)malloc(sizeof(double) * m_width);
-        scaleXtoFreq.init(width,100,  m_sampleRate/2);
+        scaleXtoFreq.init(outputWidth, minfreq, maxfreq);
     }
 
     void SetFrequencyLogarithmicAxis(bool bLogarithmic)
@@ -50,12 +47,6 @@ public:
         return scaleXtoFreq.getLogarithmic();
     }
 
-    int FreqToBin(double freq) const
-    {
-        double t = unlerp( 1, m_sampleRate/2.0f, freq);
-        return lerp( t, 1, m_pFFT->getBins());
-    }
-
     double XtoFreq(double x) const
     {
         return scaleXtoFreq.forward(x);
@@ -66,33 +57,46 @@ public:
         return scaleXtoFreq.backward(freq);
     }
 
-    void Build(double min, double max)
+    void PreBuild(Processor *pProc)
+    {
+        int *pBins = m_pBins->GetData();
+        for(int x=0; x < m_pBins->GetSize(); x++)
+        {
+            double freq = XtoFreq(x);
+            int bin = (int)floor(pProc->freq2Bin(freq));
+            pBins[x] = bin;
+        }
+    }
+
+    void Build(Processor *pProc)
     {
         //set bins to min value
-        for(int i=0; i < m_width; i++)
-            m_data[i]=0;
+        m_pOutput->clear();
+
+        double *input = pProc->getBufferIO()->GetData();
+        double *output = m_pOutput->GetData();
+        int *pBins = m_pBins->GetData();
 
         // set X axis
         int x=0;
-        int bin = FreqToBin(XtoFreq(x));
-        m_data[x]=m_pFFT->getData(bin);
-        x++;
-        for(; x < m_width; x++)
+        int bin = pBins[x];
+        output[x++]= input[bin];
+        for(; x < m_pOutput->GetSize(); x++)
         {
-            int binNext = FreqToBin(XtoFreq(x+1));
+            int binNext = pBins[x];
 
             if (binNext==bin)
             {
-                m_data[x]=m_data[x-1];
+                output[x]=output[x-1];
             }
             else
             {
                 double v = 0;
                 for (int i = bin; i < binNext; i++)
                 {
-                    v = std::max(m_pFFT->getData(i), v);
+                    v = std::max(input[i], v);
                 }
-                m_data[x]=v;
+                output[x]=v;
             }
 
             bin = binNext;
@@ -102,36 +106,27 @@ public:
         if (m_useLogY)
         {
             // log Y axis
-            for (int i = 0; i < m_width; i++)
+            for (int i = 0; i < m_pOutput->GetSize(); i++)
             {
                 const double ref = 32768;
-                m_data[i] = convertToDecibels(m_data[i], ref);
+                output[i] = convertToDecibels(output[i], ref);
+                output[i] = clamp(unlerp( -120, -20, output[i]), 0, 1);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < m_pOutput->GetSize(); i++)
+            {
+                output[i] = clamp(unlerp( 0, 32768/20, output[i]), 0, 1);
             }
         }
     }
 
-    double GetNormalizedData(int i) const
+    double *GetData() const
     {
-        if (m_useLogY)
-        {
-            double t = unlerp( -120, -20, m_data[i]);
-            t = clamp(t, 0, 1);
-            return t;
-        }
-        else
-        {
-            double t = unlerp( 0, 32768/20, m_data[i]);
-            t = clamp(t, 0, 1);
-            return t;
-        }
+        return m_pOutput->GetData();
     }
 
-    int GetLength() const
-    {
-        return m_width;
-    }
-
-private:
     double convertToDecibels(double v, double ref)
     {
         if (v<=0.001)

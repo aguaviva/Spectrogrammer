@@ -4,11 +4,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include "fft.h"
+#include "Goertzel.h"
 #include "colormaps.h"
 #include "waterfall.h"
 #include "scale.h"
 #include "auformat.h"
-#include "scalebuffer.h"
+#include "ScaleBuffer.h"
 #include "ChunkerProcessor.h"
 
 #ifdef ANDROID
@@ -28,9 +29,10 @@
 
 //WARNING: Single threaded path not working
 #define MULTITHREADING
-
-myFFT spectrum;
-ScaleBuffer scaleLog;
+myFFT fft;
+Goertzel goertzel;
+Processor *pProcessor = &fft;
+ScaleBuffer scale;
 ChunkerProcessor chunker;
 
 float sampleRate = 48000.0f;
@@ -42,22 +44,11 @@ void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ
 int barsHeight = 500;
 int waterFallRaw = barsHeight;
 
-
 static double now_ms(void)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec*1000. + tv.tv_usec/1000.;
-}
-
-
-static void DrawWaterfallLine( AndroidBitmapInfo*  info, void*  pixels)
-{
-    waterFallRaw-=1;
-    if (waterFallRaw < barsHeight)
-        waterFallRaw=info->height;
-
-    drawWaterFallLine(info, waterFallRaw, pixels, &scaleLog);
 }
 
 #include <pthread.h>
@@ -78,6 +69,10 @@ struct Context
     void*              pixels;
     pthread_mutex_t    lock;
     bool exit = false;
+
+    int iterationsPerChunk = 0;
+    double millisecondsPerChunk = 0;
+    bool redoScale = false;
 } context;
 
 void ProcessChunk()
@@ -88,10 +83,10 @@ void ProcessChunk()
         int iterationsPerChunk = 0;
 
         //if we have enough data queued process the fft
-        while (chunker.Process(&spectrum, decay, timeOverlap)) {
+        while (chunker.Process(pProcessor, decay, timeOverlap)) {
             pthread_mutex_lock(&context.lock);
 
-            scaleLog.Build(0, 0);
+            scale.Build(pProcessor);
 
             // advance waterfall
             waterFallRaw -= 1;
@@ -99,10 +94,12 @@ void ProcessChunk()
                 waterFallRaw = context.info.height;
 
             // draw line
-            drawWaterFallLine(&context.info, waterFallRaw, context.pixels, &scaleLog);
+            drawWaterFallLine(&context.info, waterFallRaw, context.pixels, &scale);
 
-            if (fftLength != spectrum.getFFTLength()) {
-                spectrum.setFFTLength(fftLength);
+            if (context.redoScale) {
+                fft.init(fftLength, sampleRate);
+                scale.PreBuild(pProcessor);
+                context.redoScale = false;
             }
 
             pthread_mutex_unlock(&context.lock);
@@ -111,7 +108,9 @@ void ProcessChunk()
         }
 
         double currTime = now_ms();
-        LOGI("Process, iterations: %i (%fms) hop: %i", iterationsPerChunk, (currTime - oldTime), (int)(spectrum.getFFTLength() * timeOverlap));
+
+        context.iterationsPerChunk = iterationsPerChunk;
+        context.millisecondsPerChunk = currTime - oldTime;
     }
 }
 
@@ -130,7 +129,7 @@ void * loop( void *init)
         ProcessChunk();
 
         double currTime = now_ms();
-        LOGI("waiting: %f  process: %f    fifo:(%i / %i)", (waitTime - oldTime), (currTime - waitTime), context.recQueue.size(), context.freeQueue.size());
+        //LOGI("waiting: %f  process: %f    fifo:(%i / %i)", (waitTime - oldTime), (currTime - waitTime), context.recQueue.size(), context.freeQueue.size());
         oldTime = currTime;
     }
     return nullptr;
@@ -139,12 +138,15 @@ void * loop( void *init)
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetFftLength(JNIEnv * env, jclass obj, jint  fftLength_)
 {
+    pthread_mutex_lock(&context.lock);
     fftLength = fftLength_;
+    context.redoScale = true;
+    pthread_mutex_unlock(&context.lock);
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetFftLength(JNIEnv * env, jclass obj)
 {
-    return spectrum.getFFTLength();
+    return pProcessor->getProcessedLength();
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetBarsHeight(JNIEnv * env, jclass obj, jint  barsHeight_)
@@ -177,27 +179,42 @@ extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetDecay
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetFrequencyLogarithmicAxis(JNIEnv * env, jclass obj, jboolean bLogarithmic)
 {
-    scaleLog.SetFrequencyLogarithmicAxis(bLogarithmic);
+    pthread_mutex_lock(&context.lock);
+    scale.SetFrequencyLogarithmicAxis(bLogarithmic);
+    context.redoScale = true;
+    pthread_mutex_unlock(&context.lock);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Spectrogram_GetFrequencyLogarithmicAxis(JNIEnv * env, jclass obj, jboolean bLogarithmic)
 {
-    return scaleLog.GetFrequencyLogarithmicAxis();
+    return scale.GetFrequencyLogarithmicAxis();
 }
 
 extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_FreqToX(JNIEnv * env, jclass obj, double freq)
 {
-    return scaleLog.FreqToX(freq);
+    return scale.FreqToX(freq);
 }
 
 extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_XToFreq(JNIEnv * env, jclass obj, double x)
 {
-    return scaleLog.XtoFreq(x);
+    return scale.XtoFreq(x);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetMinMaxFreqs(JNIEnv * env, jclass obj, double min, double max)
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetMinMaxFreqs(JNIEnv * env, jclass obj, int width, double min, double max)
 {
-    //scaleLog.SetMinMax(min, max);
+    pthread_mutex_lock(&context.lock);
+    scale.setOutputWidth(width, min, max);
+    scale.setOutputWidth(width, NoteToFreq(1), NoteToFreq(88));
+    pthread_mutex_unlock(&context.lock);
+}
+
+extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetIterationsPerChunk(JNIEnv * env, jclass obj)
+{
+    return context.iterationsPerChunk;
+}
+extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Spectrogram_GetMillisecondsPerChunk(JNIEnv * env, jclass obj)
+{
+    return context.millisecondsPerChunk;
 }
 
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedFrames(JNIEnv * env, jclass obj)
@@ -240,13 +257,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
     //----------------------------------
 
     chunker.setBuffers(&context.recQueue, &context.freeQueue);
-    spectrum.setFFTLength(fftLength);
-    scaleLog.SetSamplerate(sampleRate);
-    scaleLog.SetFFT(&spectrum);
-
-    if (scaleLog.GetLength() != context.info.width) {
-        scaleLog.SetWidth(context.info.width);
-    }
+    fft.init(fftLength, sampleRate);
+    goertzel.init(88, sampleRate);
+    scale.PreBuild(pProcessor);
 
 #ifdef MULTITHREADING
     SetRecorderCallback([](void* pCTX, uint32_t msg, void* pData) ->bool {
@@ -280,7 +293,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
             }
         }
 
-
         assert(msg==ENGINE_SERVICE_MSG_RECORDED_AUDIO_AVAILABLE);
         sem_post(&context.headwriteprotect);
         return true;
@@ -301,7 +313,7 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_Lock(JNIEnv
 #endif
     pthread_mutex_lock(&context.lock);
 
-    drawSpectrumBars(&context.info, context.pixels, barsHeight, &scaleLog);
+    drawSpectrumBars(&context.info, context.pixels, barsHeight, &scale);
 
     AndroidBitmap_unlockPixels(env, bitmap);
 

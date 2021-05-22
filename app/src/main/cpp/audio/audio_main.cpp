@@ -113,6 +113,12 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioR
   return JNI_TRUE;
 }
 
+extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Audio_getSampleRate(JNIEnv *env, jclass type) {
+
+  return engine.fastPathSampleRate_;
+}
+
+
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_deleteAudioRecorder(JNIEnv *env, jclass type) {
   if (engine.recorder_) delete engine.recorder_;
 

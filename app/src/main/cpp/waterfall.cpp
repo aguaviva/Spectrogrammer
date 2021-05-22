@@ -12,9 +12,9 @@
 #include <android/log.h>
 #include <android/bitmap.h>
 //--------------------------------Draw spectrum--------------------------------
-inline uint16_t GetColor(int x, ScaleBuffer *pScaleLog)
+inline uint16_t GetColor(double x)
 {
-    return GetMagma(pScaleLog->GetNormalizedData(x)*255);
+    return GetMagma(x * 255);
 }
 
 void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuffer *pScaleLog)
@@ -27,27 +27,29 @@ void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuf
     uint16_t*  line_end = line + info->width;
     uint32_t x = 0;
 
+    double *pData = pScaleLog->GetData();
+
     if (line < line_end)
     {
         if (((uint32_t)(uintptr_t)line & 3) != 0)
         {
-            line[0] = GetColor(x++, pScaleLog);
+            line[0] = GetColor(pData[x++]);
             line++;
         }
 
         while (line + 2 <= line_end)
         {
             uint32_t  pixel;
-            pixel = (uint32_t)GetColor(x++, pScaleLog);
+            pixel = (uint32_t)GetColor(pData[x++]);
             pixel <<=16;
-            pixel |= (uint32_t)GetColor(x++, pScaleLog);
+            pixel |= (uint32_t)GetColor(pData[x++]);
             ((uint32_t*)line)[0] = pixel;
             line += 2;
         }
 
         if (line < line_end)
         {
-            line[0] = GetColor(x++, pScaleLog);
+            line[0] = GetColor(pData[x++]);
             line++;
         }
     }
@@ -75,10 +77,10 @@ void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, double val, int h
 void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBuffer *pScaleLog)
 {
     uint16_t *line = (uint16_t *)pixels;
+    double *pPower = pScaleLog->GetData();
     for (int x=0;x<info->width;x++)
     {
-        double power = pScaleLog->GetNormalizedData(x);
-        drawSpectrumBar(info, line, (1.0-power) * height, height);
+        drawSpectrumBar(info, line, (1.0-pPower[x]) * height, height);
         line+=1;
     }
 }

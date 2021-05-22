@@ -3,20 +3,22 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include "Processor.h"
 #include "fftw3.h"
 #include "auformat.h"
 
 #define REAL 0
 #define IMAG 1
 
-class myFFT
+class myFFT : public Processor
 {
     fftw_complex *m_in = nullptr;
     fftw_complex *m_out = nullptr;
-    double *m_rout = nullptr;
+
     int m_length;
     double m_fftScaling;
     fftw_plan m_plan;
+    double m_sampleRate;
 
     void init(int length)
     {
@@ -28,36 +30,35 @@ class myFFT
 
         m_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * m_length);
         m_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * m_length);
-
-        m_rout = (double*) fftw_malloc(sizeof(double) * m_length/2);
-        for(int i=0;i<m_length/2;i++)
-            m_rout[i]=0;
-
         m_plan = fftw_plan_dft_1d(m_length, m_in, m_out, FFTW_FORWARD, FFTW_ESTIMATE);
+
+        m_pOutput = new BufferIODouble(getBins() );
+        m_pOutput->clear();
     }
 
     void deinit()
     {
+        delete(m_pOutput);
+
         fftw_destroy_plan(m_plan);
-        free(m_rout);
         fftw_free(m_in);
         fftw_free(m_out);
     }
 
 public:
-
     ~myFFT()
     {
         deinit();
     }
 
-    void setFFTLength(int length)
+    void init(int length, double sampleRate)
     {
+        m_sampleRate = sampleRate;
         deinit();
         init(length);
     }
 
-    int getFFTLength() const { return m_length; }
+    int getProcessedLength() const { return m_length; }
 
     int getBins() const { return m_length/2; }
 
@@ -85,15 +86,13 @@ public:
         }
     }
 
-    void doFFT()
+    void computePower(float decay)
     {
         fftw_execute(m_plan);
-    }
 
-    void computePowerFFT(float decay)
-    {
         double totalPower = 0;
 
+        double *m_rout = m_pOutput->GetData();
         for (int i = 0; i < getBins(); i++)
         {
             double power = sqrt(m_out[i][REAL] * m_out[i][REAL] + m_out[i][IMAG] * m_out[i][IMAG]);
@@ -104,28 +103,21 @@ public:
         }
     }
 
-    double getData(int i) const
-    {
-        if (i<getBins())
-            return m_rout[i];
-        else
-            return 0;
-    }
 
-    double bin2Freq(float sampleRate, int bin) const
+    double bin2Freq(int bin) const
     {
         if (bin==0)
             return 0;
 
-        return (sampleRate * (double)bin) / (double)getFFTLength();
+        return (m_sampleRate * (double)bin) / (double) getProcessedLength();
     }
 
-    double freq2Bin(float sampleRate, double freq) const
+    double freq2Bin(double freq) const
     {
         if (freq==0)
             return 0;
 
-        return (freq * (double)getFFTLength()) / sampleRate;
+        return (freq * (double) getProcessedLength()) / m_sampleRate;
     }
 };
 

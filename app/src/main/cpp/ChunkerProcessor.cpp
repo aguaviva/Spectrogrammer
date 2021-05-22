@@ -22,7 +22,6 @@ bool ChunkerProcessor::getAudioChunk() {
         //queue audio chunks
         audioFftQueue.push(buf);
         audioFttQueueTotalSize += AU_LEN(buf->cap_);
-        //LOGI("audioFttQueueTotalSize %i  offset %i (chunks %i -> %i)", audioFttQueueTotalSize, offset, pRecQueue->size(), audioFftQueue.size());
         return true;
     }
     return false;
@@ -48,9 +47,9 @@ void ChunkerProcessor::releaseUsedAudioChunks() {
     }
 }
 
-void ChunkerProcessor::PrepareBuffer(myFFT *pSpectrum)
+void ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
 {
-    int dataToWrite = pSpectrum->getFFTLength();
+    int dataToWrite = pSpectrum->getProcessedLength();
 
     int i = 0;
     int destOffset = 0;
@@ -79,17 +78,14 @@ void ChunkerProcessor::PrepareBuffer(myFFT *pSpectrum)
     }
 }
 
-bool ChunkerProcessor::Process(myFFT *pSpectrum, double decay, double timeOverlap)
+bool ChunkerProcessor::Process(Processor *pSpectrum, double decay, double timeOverlap)
 {
-    if ((audioFttQueueTotalSize - offset) >= pSpectrum->getFFTLength())
+    if ((audioFttQueueTotalSize - offset) >= pSpectrum->getProcessedLength())
     {
-        //LOGI("Process, offset: %i", offset);
-
         PrepareBuffer(pSpectrum);
-        pSpectrum->doFFT();
-        pSpectrum->computePowerFFT(decay);
+        pSpectrum->computePower(decay);
 
-        offset += pSpectrum->getFFTLength() * timeOverlap;
+        offset += pSpectrum->getProcessedLength() * timeOverlap;
 
         releaseUsedAudioChunks();
 

@@ -3,7 +3,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <android/bitmap.h>
-#include "scalebuffer.h"
+#include "ScaleBuffer.h"
 
 
 void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuffer *pScaleLog);

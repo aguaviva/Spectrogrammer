@@ -14,7 +14,7 @@ public class Spectrogram {
     public static native float FreqToX(double freq);
     public static native void SetFrequencyLogarithmicAxis(boolean bLogarithmic);
     public static native boolean GetFrequencyLogarithmicAxis();
-    public static native void SetMinMaxFreqs(double min, double max);
+    public static native void SetMinMaxFreqs(int width, double min, double max);
 
     public static native void ConnectWithAudioMT(Bitmap bitmap);
     public static native int Lock(Bitmap bitmap);

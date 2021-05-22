@@ -44,7 +44,7 @@ double Scale::forward(double x) const
     }
     else
     {
-        return (x / maxIdx) * (maxFreq - minFreq);
+        return (x / maxIdx) * (maxFreq - minFreq) + minFreq;
     }
 }
 
@@ -56,7 +56,7 @@ double Scale::backward(double x)  const
     }
     else
     {
-        return (x / (maxFreq - minFreq)) * maxIdx;
+        return ((x - minFreq) / (maxFreq - minFreq)) * maxIdx;
     }
 }
 
