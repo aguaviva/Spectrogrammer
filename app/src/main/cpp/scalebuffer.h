@@ -4,19 +4,16 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <algorithm>
-#include "fft.h"
 #include "Processor.h"
 #include "scale.h"
-#include "ScaleBuffer.h"
 #include "BufferIO.h"
+#include "ScaleBufferBase.h"
 
-class ScaleBuffer
+
+template <bool useLogX, bool useLogY>
+class ScaleBuffer : public ScaleBufferBase
 {
-protected:
-    BufferIODouble *m_pOutput = nullptr;
-    bool m_useLogY = true;
-    Scale scaleXtoFreq;
-
+    Scale<useLogX> scaleXtoFreq;
     BufferIOInt *m_pBins;
 
 public:
@@ -26,7 +23,7 @@ public:
         delete(m_pBins);
     }
 
-    void setOutputWidth(int outputWidth, float minfreq, float maxfreq)
+    void setOutputWidth(int outputWidth, float minFreq, float maxFreq)
     {
         delete (m_pOutput);
         m_pOutput = new BufferIODouble(outputWidth);
@@ -34,17 +31,7 @@ public:
         delete(m_pBins);
         m_pBins = new BufferIOInt(outputWidth);
 
-        scaleXtoFreq.init(outputWidth, minfreq, maxfreq);
-    }
-
-    void SetFrequencyLogarithmicAxis(bool bLogarithmic)
-    {
-        scaleXtoFreq.setLogarithmic(bLogarithmic);
-    }
-
-    bool GetFrequencyLogarithmicAxis() const
-    {
-        return scaleXtoFreq.getLogarithmic();
+        scaleXtoFreq.init(outputWidth, minFreq, maxFreq);
     }
 
     float XtoFreq(float x) const
@@ -103,7 +90,7 @@ public:
         }
 
         // set Y axis
-        if (m_useLogY)
+        if (useLogY)
         {
             // log Y axis
             for (int i = 0; i < m_pOutput->GetSize(); i++)
@@ -122,10 +109,6 @@ public:
         }
     }
 
-    float *GetData() const
-    {
-        return m_pOutput->GetData();
-    }
 
     float convertToDecibels(float v, float ref)
     {
@@ -135,5 +118,10 @@ public:
         return 20 * log10(v / ref);
     }
 };
+
+typedef ScaleBuffer<true, true> ScaleBufferLogLog;
+typedef ScaleBuffer<false, true> ScaleBufferLinLog;
+typedef ScaleBuffer<true, false> ScaleBufferLogLin;
+typedef ScaleBuffer<false,false> ScaleBufferLinLin;
 
 #endif

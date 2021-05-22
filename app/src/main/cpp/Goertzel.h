@@ -4,24 +4,25 @@
 #define _USE_MATH_DEFINES
 #include "Processor.h"
 #include <cmath>
+#include <assert.h>
 #include "auformat.h"
 
-double goertzelFilter(double *input, int length, double frequency, double sampleRate)
+double goertzelFilter(float *input, int length, float frequency, float sampleRate)
 {
-    double omega = 2 * M_PI * frequency / sampleRate;
-    double cr = cos(omega);
-    double coeff = 2 * cr;
+    float omega = 2 * M_PI * frequency / sampleRate;
+    float cr = cos(omega);
+    float coeff = 2 * cr;
 
-    double sprev = 0;
-    double sprev2 = 0;
+    float sprev = 0;
+    float sprev2 = 0;
     for (int i = 0; i < length; i++)
     {
-        double s = input[i] + coeff * sprev - sprev2;
+        float s = input[i] + coeff * sprev - sprev2;
         sprev2 = sprev;
         sprev = s;
     }
 
-    double power = sprev2 * sprev2 + sprev * sprev - coeff * sprev * sprev2;
+    float power = sprev2 * sprev2 + sprev * sprev - coeff * sprev * sprev2;
 
     return power;
 }
@@ -41,21 +42,27 @@ int FreqToNote(double freq)
 class Goertzel : public Processor
 {
     int m_length;
-    double *inputBuf;
+    BufferIODouble *m_pInput;
+    BufferIODouble *m_pInput2;
+    BufferIODouble *m_pInput4;
 
-    double m_sampleRate;
+    float m_sampleRate;
 
     void init(int length)
     {
         m_length = length;
-        inputBuf = (double*) malloc(sizeof(double) * m_length);
+        m_pInput = new BufferIODouble(m_length);
+        m_pInput2 = new BufferIODouble(m_length/2);
+        m_pInput4 = new BufferIODouble(m_length/4);
         m_pOutput = new BufferIODouble(getBins() );
         m_pOutput->clear();
     }
 
     void deinit()
     {
-        free(inputBuf);
+        delete(m_pInput);
+        delete(m_pInput2);
+        delete(m_pInput4);
         delete(m_pOutput);
     }
 
@@ -74,6 +81,8 @@ public:
         deinit();
     }
 
+    virtual const char *GetName() const {  return "Goertzel"; };
+
     void init(int length, double sampleRate)
     {
         m_sampleRate = sampleRate;
@@ -86,25 +95,49 @@ public:
 
     void convertShortToFFT(const AU_FORMAT *input, int offsetDest, int length)
     {
+        float *pInputBuf = m_pInput->GetData();
         for (int i = 0; i < length; i++)
         {
-            double val = Uint16ToDouble(&input[i]);
+            float val = Uint16ToFloat(&input[i]);
 
             int ii= i + offsetDest;
-            //val *= hamming(ii);
+            val *= hamming(ii);
 
-            inputBuf[ii] = val;
+            pInputBuf[ii] = val;
+        }
+    }
+
+    void Decimate(BufferIODouble *pOutBuf, BufferIODouble *pInBuf)
+    {
+        float *pIn = pInBuf->GetData();
+        float *pOut = pOutBuf->GetData();
+
+        assert((pOutBuf->GetSize()*2) == pInBuf->GetSize());
+
+        for(int i=0;i<pOutBuf->GetSize();i++)
+        {
+            pOut[i] = (pIn[2*i] + pIn[2*i+1])/2;
         }
     }
 
     void computePower(float decay)
     {
         float *powerBuf = m_pOutput->GetData();
+
+        float sampleRate = m_sampleRate;
+        int length =m_length;
+
+        BufferIODouble *pInput = m_pInput;
+        Decimate(m_pInput2, m_pInput); sampleRate/=2; length/=2; pInput = m_pInput2;
+        Decimate(m_pInput4, m_pInput2); sampleRate/=2; length/=2; pInput = m_pInput4;
+
         for(int i=0;i<m_pOutput->GetSize();i++)
         {
             float frequency = NoteToFreq(i+1);
-            float power = sqrt(goertzelFilter(inputBuf, m_length, frequency, m_sampleRate));
-            powerBuf[i] = power;
+            float power = sqrt(goertzelFilter(pInput->GetData(), length, frequency, sampleRate)) / 10;
+
+            powerBuf[i] = powerBuf[i] *decay + power*(1.0f-decay);
+
         }
     }
 
@@ -115,7 +148,8 @@ public:
 
     float freq2Bin(float freq) const
     {
-        return FreqToNote(freq)-1;
+        return freq;
+        //return FreqToNote(freq)-1;
     }
 };
 

@@ -14,6 +14,8 @@ protected:
 
 public:
     virtual ~Processor() { };
+    virtual const char *GetName() const = 0;
+
     virtual int getProcessedLength() const = 0;
     virtual int getBins() const = 0;
     virtual void convertShortToFFT(const AU_FORMAT *input, int offsetDest, int length) = 0;

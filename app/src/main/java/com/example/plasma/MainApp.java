@@ -93,7 +93,7 @@ public class MainApp extends AppCompatActivity
             }
         });
         //load preferences
-        ConfigDialog.LoadPreferences(this);
+        ConfigDialog.LoadPreferences(this, plasmaView);
     }
 
     @Override

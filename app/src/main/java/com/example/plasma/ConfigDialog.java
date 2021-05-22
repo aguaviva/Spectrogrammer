@@ -18,8 +18,10 @@ import androidx.appcompat.app.AppCompatActivity;
 public class ConfigDialog {
 
     static private int horizontalScaleSelectedId;
+    static private WaterfallView mWaterfallView;
 
     static public void onCreateDialog(Context context) {
+
         LayoutInflater inflater = (LayoutInflater) context.getSystemService( Context.LAYOUT_INFLATER_SERVICE );
         View popupView =inflater.inflate(R.layout.settings_menu, null);
 
@@ -78,10 +80,10 @@ public class ConfigDialog {
     {
         switch(id)
         {
-            case R.id.horizontalScaleLinear:Spectrogram.SetFrequencyLogarithmicAxis(false); break;
-            case R.id.horizontalScaleLogarithmic:Spectrogram.SetFrequencyLogarithmicAxis(true); break;
-            case R.id.horizontalScalePiano:Spectrogram.SetFrequencyLogarithmicAxis(true); break;
-            case R.id.horizontalScaleGuitar:Spectrogram.SetFrequencyLogarithmicAxis(true); break;
+            case R.id.horizontalScaleLinear:   mWaterfallView.setLogX(false); break;
+            case R.id.horizontalScaleLogarithmic:mWaterfallView.setLogX(true); break;
+            case R.id.horizontalScalePiano:mWaterfallView.setLogX(true); break;
+            case R.id.horizontalScaleGuitar:mWaterfallView.setLogX(true); break;
         }
         horizontalScaleSelectedId = id;
     }
@@ -91,8 +93,10 @@ public class ConfigDialog {
         return horizontalScaleSelectedId;
     }
 
-    static public void LoadPreferences(AppCompatActivity app)
+    static public void LoadPreferences(AppCompatActivity app, WaterfallView waterfallView)
     {
+        mWaterfallView = waterfallView;
+
         //load preferences
         SharedPreferences sharedPref = app.getPreferences(Context.MODE_PRIVATE);
         Spectrogram.SetOverlap(sharedPref.getFloat(app.getString(R.string.fft_overlap), 0.5f));

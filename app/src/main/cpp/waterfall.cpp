@@ -12,12 +12,12 @@
 #include <android/log.h>
 #include <android/bitmap.h>
 //--------------------------------Draw spectrum--------------------------------
-inline uint16_t GetColor(double x)
+inline uint16_t GetColor(float x)
 {
     return GetMagma(x * 255);
 }
 
-void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuffer *pScaleLog)
+void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBufferBase *pScaleLog)
 {
     uint16_t* line = (uint16_t*)((char*)pixels + info->stride*yy);
 
@@ -74,7 +74,7 @@ void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, float val, int he
     }
 }
 
-void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBuffer *pScaleLog)
+void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBufferBase *pScaleLog)
 {
     uint16_t *line = (uint16_t *)pixels;
     float *pPower = pScaleLog->GetData();

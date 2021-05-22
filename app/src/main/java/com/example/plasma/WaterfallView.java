@@ -18,6 +18,8 @@ public class WaterfallView extends View {
     private long mStartTime;
     private Paint white, gray, drawPaint;
     private int barsHeight = 200;
+    private boolean mLogX = false;
+    private boolean mLogY = true;
     Rect bars;
 
     int delay = 0;
@@ -45,6 +47,18 @@ public class WaterfallView extends View {
         viewport.Init(this);
     }
 
+    public void setLogX(boolean b) { mLogX = b; updateScaler(); }
+    public void setLogY(boolean b) { mLogX = b; updateScaler(); }
+
+    public void updateScaler() {
+        if (mBitmap!=null) {
+            Spectrogram.SetProcessor(0);
+            Spectrogram.SetScaler(mBitmap.getWidth(), 100, 48000 / 2, mLogX, mLogY);
+            //Spectrogram.SetProcessor(1);
+            //Spectrogram.SetScaler(mBitmap.getWidth(), 1, 88, false, false);
+        }
+    }
+
     @Override
     protected void onSizeChanged (int w, int h, int oldw, int oldh)
     {
@@ -52,7 +66,7 @@ public class WaterfallView extends View {
         {
             mBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
             bars = new Rect(0, 0, mBitmap.getWidth(), barsHeight);
-            Spectrogram.SetMinMaxFreqs(w, 100,48000/2);
+            updateScaler();
             Spectrogram.ConnectWithAudioMT(mBitmap);
         }
         else

@@ -19,6 +19,7 @@ public class Audio {
     private static native void stopPlay();
     public static native void pausePlay();
     private static native void deleteSLEngine();
+    private static native float getSampleRate();
 
     public static void onCreate(AudioManager myAudioMgr)
     {

@@ -113,7 +113,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioR
   return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Audio_getSampleRate(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Audio_getSampleRate(JNIEnv *env, jclass type) {
 
   return engine.fastPathSampleRate_;
 }

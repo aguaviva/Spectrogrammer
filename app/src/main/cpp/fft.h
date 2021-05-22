@@ -51,6 +51,8 @@ public:
         deinit();
     }
 
+    virtual const char *GetName() const {  return "FFT"; };
+
     void init(int length, float sampleRate)
     {
         m_sampleRate = sampleRate;
@@ -76,7 +78,7 @@ public:
     {
         for (int i = 0; i < length; i++)
         {
-            float val = Uint16ToDouble(&input[i]);
+            float val = Uint16ToFloat(&input[i]);
 
             int ii= i + offsetDest;
             val *= hamming(ii);
