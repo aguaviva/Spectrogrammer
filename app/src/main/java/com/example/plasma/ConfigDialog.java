@@ -17,54 +17,98 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class ConfigDialog {
 
-    static private int horizontalScaleSelectedId;
     static private WaterfallView mWaterfallView;
 
     static public void onCreateDialog(Context context) {
 
-        LayoutInflater inflater = (LayoutInflater) context.getSystemService( Context.LAYOUT_INFLATER_SERVICE );
-        View popupView =inflater.inflate(R.layout.settings_menu, null);
+        LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        View popupView = inflater.inflate(R.layout.settings_menu, null);
 
         //--------------------------------
         SeekBar.OnSeekBarChangeListener listener = new SeekBar.OnSeekBarChangeListener() {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                switch(seekBar.getId()) {
-                    case R.id.fft_overlap:  Spectrogram.SetOverlap((float) progress / 100.0f); break;
-                    case R.id.bars_decay: Spectrogram.SetDecay((float) progress / 100.0f); break;
-                    case R.id.fft_size:Spectrogram.SetFftLength(1<<(progress+8));break;
+                switch (seekBar.getId()) {
+                    case R.id.fft_overlap:
+                        Spectrogram.SetOverlap((float) progress / 100.0f);
+                        break;
+                    case R.id.bars_decay:
+                        Spectrogram.SetDecay((float) progress / 100.0f);
+                        break;
+                    case R.id.fft_size:
+                        Spectrogram.SetFftLength(1 << (progress + 8));
+                        break;
+                    case R.id.volume:
+                        Spectrogram.SetVolume((float) progress / 100.0f);
                 }
             }
 
             @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
 
             @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
         };
 
-        SeekBar seek1 = (SeekBar)popupView.findViewById(R.id.fft_overlap);
-        seek1.setProgress((int)(Spectrogram.GetOverlap()*100));
+        SeekBar seek4 = (SeekBar) popupView.findViewById(R.id.volume);
+        seek4.setProgress((int) (Spectrogram.GetVolume() * 100));
+        seek4.setOnSeekBarChangeListener(listener);
+        SeekBar seek1 = (SeekBar) popupView.findViewById(R.id.fft_overlap);
+        seek1.setProgress((int) (Spectrogram.GetOverlap() * 100));
         seek1.setOnSeekBarChangeListener(listener);
-        SeekBar seek2 = (SeekBar)popupView.findViewById(R.id.bars_decay);
-        seek2.setProgress((int)(Spectrogram.GetDecay()*100));
+        SeekBar seek2 = (SeekBar) popupView.findViewById(R.id.bars_decay);
+        seek2.setProgress((int) (Spectrogram.GetDecay() * 100));
         seek2.setOnSeekBarChangeListener(listener);
-        SeekBar seek3 = (SeekBar)popupView.findViewById(R.id.fft_size);
-        seek3.setProgress((int)(Math.log(Spectrogram.GetFftLength()) / Math.log(2))-8);
+        SeekBar seek3 = (SeekBar) popupView.findViewById(R.id.fft_size);
+        seek3.setProgress((int) (Math.log(Spectrogram.GetFftLength()) / Math.log(2)) - 8);
         seek3.setOnSeekBarChangeListener(listener);
 
         //--------------------------------
         RadioGroup.OnCheckedChangeListener RadioButtonListener = new RadioGroup.OnCheckedChangeListener() {
             @Override
-            public void onCheckedChanged(RadioGroup group, int checkedId) {
-                SetHorizontalAxis(checkedId);
+            public void onCheckedChanged(RadioGroup radioGroup, int checkedId) {
+                View radioButton = radioGroup.findViewById(checkedId);
+                int index = radioGroup.indexOfChild(radioButton);
+
+                switch (checkedId) {
+                    case R.id.horizontalScaleLogarithmic: mWaterfallView.setHorizontalScale(WaterfallView.HorizontalScale.LOGARITHMIC); break;
+                    case R.id.horizontalScaleLinear: mWaterfallView.setHorizontalScale(WaterfallView.HorizontalScale.LINEAR); break;
+                    case R.id.horizontalScalePiano:mWaterfallView.setHorizontalScale(WaterfallView.HorizontalScale.PIANO); break;
+                    case R.id.horizontalScaleGuitar:mWaterfallView.setHorizontalScale(WaterfallView.HorizontalScale.GUITAR); break;
+                    case R.id.verticalScaleLogarithmic: mWaterfallView.setLogY(true); break;
+                    case R.id.verticalScaleLinear: mWaterfallView.setLogY(false); break;
+                }
             }
         };
+        {
+            RadioGroup axisScaleGroup = (RadioGroup) popupView.findViewById(R.id.horizontalScale);
+            int index = axisScaleGroup.getCheckedRadioButtonId();
+            axisScaleGroup.setOnCheckedChangeListener(RadioButtonListener);
+            int state = -1;
+            switch (mWaterfallView.getHorizontalScale())
+            {
+                case LOGARITHMIC: state = R.id.horizontalScaleLogarithmic; break;
+                case LINEAR: state = R.id.horizontalScaleLinear; break;
+                case PIANO: state = R.id.horizontalScalePiano; break;
+                case GUITAR: state = R.id.horizontalScaleGuitar; break;
+                default: assert(false);
+            }
+            RadioButton radioButton = (RadioButton)popupView.findViewById(state);
+            radioButton.setChecked(true);
+        }
+        {
+            RadioGroup axisScaleGroup = (RadioGroup) popupView.findViewById(R.id.verticalScale);
+            int index = axisScaleGroup.getCheckedRadioButtonId();
+            axisScaleGroup.setOnCheckedChangeListener(RadioButtonListener);
+            RadioButton radioButton = (RadioButton)popupView.findViewById(R.id.verticalScaleLogarithmic);
+            radioButton.setChecked(mWaterfallView.getLogY());
+            radioButton = (RadioButton)popupView.findViewById(R.id.verticalScaleLinear);
+            radioButton.setChecked(!mWaterfallView.getLogY());
+        }
 
-        RadioGroup horizontalScaleGroup = (RadioGroup)popupView.findViewById(R.id.horizontalScale);
-        int index = horizontalScaleGroup.getCheckedRadioButtonId();
-        horizontalScaleGroup.setOnCheckedChangeListener(RadioButtonListener);
-        RadioButton b = (RadioButton)popupView.findViewById(horizontalScaleSelectedId);
-        b.setChecked(true);
+        //RadioButton bh = (RadioButton)popupView.findViewById(R.id.horizontalScale);
+        //
 
         //--------------------------------
         int width = LinearLayout.LayoutParams.MATCH_PARENT;
@@ -76,23 +120,6 @@ public class ConfigDialog {
         popupWindow.showAtLocation(popupView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 0);
     }
 
-    static private void SetHorizontalAxis(int id)
-    {
-        switch(id)
-        {
-            case R.id.horizontalScaleLinear:   mWaterfallView.setLogX(false); break;
-            case R.id.horizontalScaleLogarithmic:mWaterfallView.setLogX(true); break;
-            case R.id.horizontalScalePiano:mWaterfallView.setLogX(true); break;
-            case R.id.horizontalScaleGuitar:mWaterfallView.setLogX(true); break;
-        }
-        horizontalScaleSelectedId = id;
-    }
-
-    static public int GetHorizontalAxis()
-    {
-        return horizontalScaleSelectedId;
-    }
-
     static public void LoadPreferences(AppCompatActivity app, WaterfallView waterfallView)
     {
         mWaterfallView = waterfallView;
@@ -102,7 +129,8 @@ public class ConfigDialog {
         Spectrogram.SetOverlap(sharedPref.getFloat(app.getString(R.string.fft_overlap), 0.5f));
         Spectrogram.SetDecay(sharedPref.getFloat(app.getString(R.string.bars_decay), 0.9f));
         Spectrogram.SetFftLength(sharedPref.getInt(app.getString(R.string.fft_size), 4096));
-        SetHorizontalAxis(sharedPref.getInt(app.getString(R.string.horizontalScaleSelectedId), R.id.horizontalScaleLogarithmic));
+        mWaterfallView.setHorizontalScale(WaterfallView.HorizontalScale.toMyEnum(sharedPref.getString(app.getString(R.string.horizontalScaleSelected), WaterfallView.HorizontalScale.LOGARITHMIC.toString())));
+        mWaterfallView.setLogY(sharedPref.getBoolean(app.getString(R.string.verticalScaleSelected), true));
         Spectrogram.SetBarsHeight(200);
     }
 
@@ -113,7 +141,8 @@ public class ConfigDialog {
         editor.putFloat(app.getString(R.string.fft_overlap), Spectrogram.GetOverlap());
         editor.putFloat(app.getString(R.string.bars_decay), Spectrogram.GetDecay());
         editor.putInt(app.getString(R.string.fft_size), Spectrogram.GetFftLength());
-        editor.putInt(app.getString(R.string.horizontalScaleSelectedId), horizontalScaleSelectedId);
+        editor.putString(app.getString(R.string.horizontalScaleSelected), mWaterfallView.getHorizontalScale().toString());
+        editor.putBoolean(app.getString(R.string.verticalScaleSelected), mWaterfallView.getLogY());
         editor.apply();
         editor.commit();
     }

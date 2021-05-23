@@ -7,6 +7,8 @@ public class Spectrogram {
     public static native int GetFftLength();
     public static native void SetBarsHeight(int barsHeight);
     public static native void SetOverlap(float timeOverlap);
+    public static native void SetVolume(float volume);
+    public static native float GetVolume();
     public static native void SetDecay(float decay);
     public static native float GetOverlap();
     public static native float GetDecay();

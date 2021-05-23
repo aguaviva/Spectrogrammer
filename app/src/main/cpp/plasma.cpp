@@ -198,6 +198,15 @@ extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetDecay
     return decay;
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetVolume(JNIEnv * env, jclass obj, jfloat volume_)
+{
+    pScale->setVolume(volume_);
+}
+extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetVolume(JNIEnv * env, jclass obj)
+{
+    return pScale->getVolume();
+}
+
 extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_FreqToX(JNIEnv * env, jclass obj, double freq)
 {
     return pScale->FreqToX(freq);
@@ -282,7 +291,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
 
     chunker.setBuffers(&context.recQueue, &context.freeQueue);
     fft.init(fftLength, sampleRate);
-    goertzel.init(4096, sampleRate);
+    goertzel.init(4096, sampleRate, 1, 88);
     pScale->PreBuild(pProcessor);
 
 #ifdef MULTITHREADING

@@ -8,9 +8,13 @@
     <string name="fft_overlap">FFT overlap</string>
     <string name="bars_decay">Bars decay</string>
     <string name="fft_size">FFT size</string>
-    <string name="x_axis_scale_type">X axis scale</string>
+    <string name="x_axis_scale_type">X axis scale type</string>
+    <string name="y_axis_scale_type">Y axis scale type</string>
     <string name="logarithmic">logarithmic</string>
     <string name="frequency_logarithmic_axis">FrequencyLogarithmicAxis</string>
-    <string name="horizontalScaleLogarithmic">horizontalScaleLogarithmic</string>
-    <string name="horizontalScaleSelectedId">Horizontal Scale Selected Id</string>
+    <string name="ScaleLogarithmic">ScaleLogarithmic</string>
+    <string name="horizontalScaleSelected">Horizontal Scale Selected</string>
+    <string name="verticalScaleSelected">Vertical Scale Selected</string>
+    <string name="volume">volume</string>
 </resources>
+

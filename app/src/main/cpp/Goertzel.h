@@ -48,12 +48,15 @@ class Goertzel : public Processor
 
     float m_sampleRate;
 
+    int m_minNote, m_maxNote;
+
     void init(int length)
     {
         m_length = length;
         m_pInput = new BufferIODouble(m_length);
         m_pInput2 = new BufferIODouble(m_length/2);
         m_pInput4 = new BufferIODouble(m_length/4);
+
         m_pOutput = new BufferIODouble(getBins() );
         m_pOutput->clear();
     }
@@ -83,14 +86,16 @@ public:
 
     virtual const char *GetName() const {  return "Goertzel"; };
 
-    void init(int length, double sampleRate)
+    void init(int length, double sampleRate, int minNote, int maxNote)
     {
+        m_minNote = minNote;
+        m_maxNote = maxNote+1;
         m_sampleRate = sampleRate;
         deinit();
         init(length);
     }
 
-    int getBins() const { return 88; }
+    int getBins() const { return (m_maxNote-m_minNote); }
     int getProcessedLength() const { return m_length; }
 
     void convertShortToFFT(const AU_FORMAT *input, int offsetDest, int length)
@@ -131,10 +136,11 @@ public:
         Decimate(m_pInput2, m_pInput); sampleRate/=2; length/=2; pInput = m_pInput2;
         Decimate(m_pInput4, m_pInput2); sampleRate/=2; length/=2; pInput = m_pInput4;
 
+        assert(getBins() ==m_pOutput->GetSize() );
         for(int i=0;i<m_pOutput->GetSize();i++)
         {
-            float frequency = NoteToFreq(i+1);
-            float power = sqrt(goertzelFilter(pInput->GetData(), length, frequency, sampleRate)) / 10;
+            float frequency = NoteToFreq(m_minNote + i);
+            float power = sqrt(goertzelFilter(pInput->GetData(), length, frequency, sampleRate));
 
             powerBuf[i] = powerBuf[i] *decay + power*(1.0f-decay);
 

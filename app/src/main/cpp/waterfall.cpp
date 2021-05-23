@@ -76,6 +76,9 @@ void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, float val, int he
 
 void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBufferBase *pScaleLog)
 {
+    assert(pScaleLog);
+    assert(pixels);
+
     uint16_t *line = (uint16_t *)pixels;
     float *pPower = pScaleLog->GetData();
     for (int x=0;x<info->width;x++)

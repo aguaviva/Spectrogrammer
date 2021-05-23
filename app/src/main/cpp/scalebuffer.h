@@ -102,9 +102,10 @@ public:
         }
         else
         {
+            float max =  32768/mVolume;
             for (int i = 0; i < m_pOutput->GetSize(); i++)
             {
-                output[i] = clamp(unlerp( 0, 32768/20, output[i]), 0, 1);
+                output[i] = clamp(unlerp( 0, max , output[i]), 0, 1);
             }
         }
     }
