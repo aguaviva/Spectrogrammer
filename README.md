@@ -5,14 +5,16 @@ Android app that shows a spectrogram
  - Low latency audio processing, uses
      - Multithreaded native code
      - OpenSL
-     - FFTW 
- - Up to 8192 samples FFT
- - Log/Linear scales
+ - Spectrum types:
+   - FFT, for scientific purposes
+     - Up to 8192 frequency bins
+     - Log/Linear scales
+   - Goertzel bank filter, centered at notes frequencies, for tuning instruments      
  - Configurable FFT overlap
  - Vertical bars smoothing 
  - Pan & Zoom
  - Measuring cursor 
- - Instruments overlay for piano and guitar
+ 
 
 ## Screenshots
 
