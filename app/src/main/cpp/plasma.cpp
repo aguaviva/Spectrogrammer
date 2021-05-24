@@ -30,15 +30,11 @@
 ////////////////////////////////////////////////////////////////////
 
 #ifdef ANDROID
-
-//WARNING: Single threaded path not working
-#define MULTITHREADING
 myFFT fft;
 Goertzel goertzel;
 Processor *pProcessor = &fft;
-//Processor *pProcessor = &goertzel;
-
 ScaleBufferBase *pScale = nullptr;
+BufferIODouble *m_pHoldedData = nullptr;
 
 ChunkerProcessor chunker;
 
@@ -101,7 +97,7 @@ void ProcessChunk()
                 waterFallRaw = context.info.height;
 
             // draw line
-            drawWaterFallLine(&context.info, waterFallRaw, context.pixels, pScale);
+            drawWaterFallLine(&context.info, waterFallRaw, context.pixels, pScale->GetBuffer());
 
             if (context.redoScale) {
                 fft.init(fftLength, sampleRate);
@@ -121,7 +117,6 @@ void ProcessChunk()
     }
 }
 
-#ifdef MULTITHREADING
 void * loop( void *init)
 {
     double oldTime = now_ms();
@@ -141,7 +136,6 @@ void * loop( void *init)
     }
     return nullptr;
 }
-#endif
 
 ScaleBufferBase *GetScale(bool logX, bool logY)
 {
@@ -217,6 +211,25 @@ extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_XToFreq(J
     return pScale->XtoFreq(x);
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_HoldData(JNIEnv * env, jclass obj)
+{
+    pthread_mutex_lock(&context.lock);
+    if (m_pHoldedData==nullptr)
+        m_pHoldedData = new BufferIODouble(pScale->GetBuffer()->GetSize());
+
+    m_pHoldedData->copy(pScale->GetBuffer());
+    pthread_mutex_unlock(&context.lock);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ClearHeldData(JNIEnv * env, jclass obj)
+{
+    pthread_mutex_lock(&context.lock);
+    free(m_pHoldedData);
+    m_pHoldedData = nullptr;
+    pthread_mutex_unlock(&context.lock);
+}
+
+
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetScaler(JNIEnv * env, jclass obj, int width, double min, double max, jboolean bLogX, jboolean bLogY)
 {
     pthread_mutex_lock(&context.lock);
@@ -262,8 +275,6 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedF
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWithAudioMT(JNIEnv * env, jclass obj, jobject bitmap)
 {
-
-#ifdef MULTITHREADING
     // if there is a thread running destroy it because we will create a new one
     static bool gotThread = false;
     if (gotThread)
@@ -273,7 +284,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
         pthread_join(context.worker, NULL);
         pthread_attr_destroy(&context.attr);
     }
-#endif
 
     //----------------------------------
 
@@ -294,7 +304,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
     goertzel.init(4096, sampleRate, 1, 88);
     pScale->PreBuild(pProcessor);
 
-#ifdef MULTITHREADING
     SetRecorderCallback([](void* pCTX, uint32_t msg, void* pData) ->bool {
 
         {
@@ -336,17 +345,18 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
     pthread_attr_init(&context.attr);
     pthread_create(&context.worker, &context.attr, loop , nullptr);
     gotThread = true;
-#endif
 }
 
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_Lock(JNIEnv * env, jclass  obj, jobject bitmap)
 {
-#ifndef MULTITHREADING
-    ProcessChunk();
-#endif
     pthread_mutex_lock(&context.lock);
 
-    drawSpectrumBars(&context.info, context.pixels, barsHeight, pScale);
+    drawSpectrumBars(&context.info, context.pixels, barsHeight, pScale->GetBuffer());
+
+    if (m_pHoldedData!=nullptr)
+    {
+        drawHeldData(&context.info, context.pixels, barsHeight, m_pHoldedData);
+    }
 
     AndroidBitmap_unlockPixels(env, bitmap);
 

@@ -6,5 +6,6 @@
 #include "ScaleBufferBase.h"
 
 
-void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBufferBase *pScaleLog);
-void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBufferBase *pScaleLog);
+void drawWaterFallLine(const AndroidBitmapInfo*  info, int yy, void*  pixels, BufferIODouble *pBuffer);
+void drawSpectrumBars(const AndroidBitmapInfo*  info, void*  pixels, int height, BufferIODouble *pBuffer);
+void drawHeldData(const AndroidBitmapInfo*  info, void*  pixels, int height, BufferIODouble *pScaleLog);

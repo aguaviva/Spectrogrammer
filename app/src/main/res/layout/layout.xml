@@ -12,30 +12,6 @@
         android:background="?attr/colorPrimary"
         android:minHeight="?attr/actionBarSize"
         android:theme="?attr/actionBarTheme">
-        <Switch
-            android:id="@+id/start_stop_switch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:gravity="right"
-            android:showText="false" />
-
-        <Button
-            android:id="@+id/preferencesButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:background="#00FFFFFF"
-            android:minWidth="48dip"
-            android:text="&#8942;"
-            android:textStyle="bold" />
-
-        <CheckBox
-            android:id="@+id/measureCheckBox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:text="measure" />
 
     </androidx.appcompat.widget.Toolbar>
 
@@ -43,6 +19,7 @@
         android:id="@+id/WaterfallView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
+
 
 
 </LinearLayout>

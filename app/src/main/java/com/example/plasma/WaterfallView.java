@@ -123,6 +123,12 @@ public class WaterfallView extends View {
         if (mMeasuring) {
             x = event.getX(0);
             y = event.getY(0);
+
+            if (y<=barsHeight)
+            {
+                Spectrogram.HoldData();
+            }
+
         }
         else {
             viewport.onTouchEvent(event);
@@ -142,7 +148,6 @@ public class WaterfallView extends View {
         if (mBitmap != null)
         {
             int currentRow = Spectrogram.Lock(mBitmap);
-            //int currentRow = Spectrogram.Update(mBitmap, System.currentTimeMillis() - mStartTime);
             if (currentRow>=0) {
                 // draw bars
                 canvas.drawBitmap(mBitmap, bars, bars, drawPaint);

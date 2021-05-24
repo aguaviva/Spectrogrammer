@@ -17,7 +17,7 @@ inline uint16_t GetColor(float x)
     return GetMagma(x * 255);
 }
 
-void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBufferBase *pScaleLog)
+void drawWaterFallLine(const AndroidBitmapInfo*  info, int yy, void*  pixels, BufferIODouble *pBuffer)
 {
     uint16_t* line = (uint16_t*)((char*)pixels + info->stride*yy);
 
@@ -27,7 +27,7 @@ void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuf
     uint16_t*  line_end = line + info->width;
     uint32_t x = 0;
 
-    float *pData = pScaleLog->GetData();
+    float *pData = pBuffer->GetData();
 
     if (line < line_end)
     {
@@ -55,35 +55,57 @@ void drawWaterFallLine(AndroidBitmapInfo*  info, int yy, void*  pixels, ScaleBuf
     }
 }
 
-void drawSpectrumBar(AndroidBitmapInfo*  info, uint16_t *line, float val, int height)
+void drawSpectrumBar(const AndroidBitmapInfo*  info, uint16_t *line, float val, int height)
 {
     int y = 0;
 
     //background
     for (int yy=0;yy<val;yy++)
     {
-        line[y] = 0x00ff;
+        line[y] = TO16BITS(0,0,255);
         y += info->stride/2;
     }
 
     // bar
     for (int yy=val;yy<height;yy++)
     {
-        line[y] = 0xffff;
+        line[y] = TO16BITS(192,192,192);
         y += info->stride/2;
     }
 }
 
-void drawSpectrumBars(AndroidBitmapInfo*  info, void*  pixels, int height, ScaleBufferBase *pScaleLog)
-{
-    assert(pScaleLog);
-    assert(pixels);
+void drawSpectrumBars(const AndroidBitmapInfo*  info, void*  pixels, int height, BufferIODouble *pBuffer) {
+    assert(pBuffer->GetSize()==info->width);
 
     uint16_t *line = (uint16_t *)pixels;
-    float *pPower = pScaleLog->GetData();
-    for (int x=0;x<info->width;x++)
+    float *pPower = pBuffer->GetData();
+    for (int x=0;x<pBuffer->GetSize();x++)
     {
         drawSpectrumBar(info, line, (1.0-pPower[x]) * height, height);
         line+=1;
+    }
+}
+
+
+void drawHeldData(const AndroidBitmapInfo*  info, void*  pixels, int height, BufferIODouble *pBuffer)
+{
+    assert(pBuffer);
+    assert(pixels);
+
+    uint16_t color = TO16BITS(255,0,0);
+
+    uint16_t *line = (uint16_t *)pixels;
+    float *pPower = pBuffer->GetData();
+    uint32_t stride = (info->stride/2);
+    for (int x=0;x<pBuffer->GetSize();x++)
+    {
+        uint32_t yy = (1.0 - pPower[x]) * height;
+        uint32_t y = yy*stride;
+
+        line[x+y] = color; y+= stride;
+        line[x+y] = color; y+= stride;
+        line[x+y] = color; y+= stride;
+        line[x+y] = color; y+= stride;
+        line[x+y] = color; y+= stride;
     }
 }

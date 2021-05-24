@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".MainActivity">
+
+    <item
+        android:id="@+id/play_pause2"
+        android:checkable="true"
+        android:icon="@drawable/play_pause_checker"
+        app:actionLayout="@layout/action_layout_styled_checkbox"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/settings"
+        android:icon="@android:drawable/ic_menu_manage"
+        app:showAsAction="always"/>
+
+    <item
+        android:id="@+id/measuring_tool"
+        app:showAsAction="always"
+        android:title="📏"/>
+
+    <item
+        android:id="@+id/exit"
+        app:showAsAction="never"
+        android:title="exit"/>
+
+</menu>

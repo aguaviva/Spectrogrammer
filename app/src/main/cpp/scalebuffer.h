@@ -110,7 +110,6 @@ public:
         }
     }
 
-
     float convertToDecibels(float v, float ref)
     {
         if (v<=0.001)

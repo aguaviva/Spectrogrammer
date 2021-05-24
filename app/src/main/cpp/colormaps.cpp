@@ -1,4 +1,5 @@
 #include <math.h>
+#include "colormaps.h"
 //
 // Created by amdev02 on 4/27/2021.
 //

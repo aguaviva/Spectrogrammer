@@ -16,5 +16,10 @@
     <string name="horizontalScaleSelected">Horizontal Scale Selected</string>
     <string name="verticalScaleSelected">Vertical Scale Selected</string>
     <string name="volume">volume</string>
+    <string-array name="processors_array">
+        <item>FFT</item>
+        <item>Music</item>
+    </string-array>
+
 </resources>
 

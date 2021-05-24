@@ -17,6 +17,9 @@ public class Spectrogram {
     public static native void SetScaler(int width, double min, double max, boolean bLogX, boolean bLogY);
     public static native void SetProcessor(int processor);
 
+    public static native void HoldData();
+    public static native void ClearHeldData();
+
     public static native void ConnectWithAudioMT(Bitmap bitmap);
     public static native int Lock(Bitmap bitmap);
     public static native void Unlock(Bitmap bitmap);

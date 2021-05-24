@@ -1,10 +1,7 @@
-//
-// Created by amdev02 on 4/27/2021.
-//
+#ifndef COLORMAPS_H
+#define COLORMAPS_H
 
-#ifndef BITMAP_PLASMA_COLORMAPS_H
-#define BITMAP_PLASMA_COLORMAPS_H
-
+#define TO16BITS(r,g,b) ((uint16_t)( ((r << 8) & 0xf800) | ((g << 3) & 0x07e0) | ((b >> 3) & 0x001f) ))
 uint16_t GetMagma(int i);
 
-#endif //BITMAP_PLASMA_COLORMAPS_H
+#endif

@@ -1,15 +1,21 @@
 #ifndef BUFFERIO_H
 #define BUFFERIO_H
+#include <cstring>
 
 template <class type>
 class BufferIO
 {
     type *m_rout = nullptr;
-    int     m_size = 0;
+    int   m_size = 0;
 public:
     BufferIO(int size)
     {
         Resize(size);
+    }
+
+    BufferIO(BufferIO<type> *pIn)
+    {
+        copy(pIn);
     }
 
     ~BufferIO()
@@ -33,6 +39,11 @@ public:
             m_rout[i]=0;
     }
 
+    void copy(BufferIO<type> *pIn)
+    {
+        Resize(pIn->GetSize());
+        memcpy(m_rout, pIn->GetData(), m_size*sizeof(type));
+    }
 
     type *GetData() { return m_rout; }
     int GetSize() { return m_size; }

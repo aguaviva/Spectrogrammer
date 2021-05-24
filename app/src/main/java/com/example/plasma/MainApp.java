@@ -30,14 +30,19 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.util.AttributeSet;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
+import android.widget.Spinner;
 import android.widget.Switch;
 
 import static android.Manifest.permission.RECORD_AUDIO;
@@ -68,30 +73,6 @@ public class MainApp extends AppCompatActivity
 
         plasmaView = (WaterfallView)findViewById(R.id.WaterfallView);
 
-        final Switch switchAB = (Switch)findViewById(R.id.start_stop_switch);
-        switchAB.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                Audio.pausePlay();
-             }
-        });
-
-        final CheckBox measure = (CheckBox)findViewById(R.id.measureCheckBox);
-        measure.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                plasmaView.SetMeasuring(isChecked);
-            }
-        });
-
-
-        final Button preferencesButton = (Button)findViewById(R.id.preferencesButton);
-        final AppCompatActivity app = this;
-        preferencesButton.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                ConfigDialog.onCreateDialog(app);
-            }
-        });
         //load preferences
         ConfigDialog.LoadPreferences(this, plasmaView);
     }
@@ -115,4 +96,47 @@ public class MainApp extends AppCompatActivity
                 }
         }
     }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu){
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.toolbar_options_menu, menu);
+
+        final MenuItem logItem = menu.findItem(R.id.play_pause2);
+        CheckBox cb = (CheckBox)logItem.getActionView().findViewById(R.id.action_layout_styled_checkbox);
+        if (cb != null)
+        {
+
+            cb.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Audio.pausePlay();
+                }
+            });
+        }
+
+        return true;
+    }
+
+    boolean mMeasuring = false;
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle item selection
+        switch (item.getItemId()) {
+            case R.id.settings:
+                ConfigDialog.onCreateDialog(this);
+                return true;
+            case R.id.measuring_tool:
+                mMeasuring = !mMeasuring;
+                plasmaView.SetMeasuring(mMeasuring);
+                return true;
+            case R.id.exit:
+                finish();
+                System.exit(0);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
 }
