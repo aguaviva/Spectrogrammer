@@ -22,27 +22,39 @@ void ChunkerProcessor::end()
         assert(buf);
 
         //queue audio chunks
-        freeQueue->push(buf);
+        {
+            freeQueue.push(buf);
+            std::lock_guard<std::mutex> lock(lock_pFreeQueue);
+        }
+
         audioFttQueueTotalSize -= AU_LEN(buf->cap_);
     }
     assert(audioFttQueueTotalSize==0);
     m_started = false;
 }
 
+bool ChunkerProcessor::pushAudioChunk(sample_buf *buf) {
 
-void ChunkerProcessor::setBuffers(AudioQueue *pRecQueue_, AudioQueue *freeQueue_)
-{
-    pRecQueue = pRecQueue_;
-    freeQueue = freeQueue_;
+    std::lock_guard<std::mutex> lock(lock_pRecQueue);
+
+    if (recQueue.size()>2)
+    {
+        std::lock_guard<std::mutex> lock(lock_pFreeQueue);
+        freeQueue.push(buf);
+        return false;
+    }
+
+    recQueue.push(buf);
+    return true;
 }
 
 bool ChunkerProcessor::getAudioChunk() {
 
-    std::lock_guard<std::mutex> lock(getMutex());
+    std::lock_guard<std::mutex> lock(lock_pRecQueue);
 
     sample_buf *buf = nullptr;
-    if (pRecQueue->front(&buf)) {
-        pRecQueue->pop();
+    if (recQueue.front(&buf)) {
+        recQueue.pop();
         assert(buf);
 
         //queue audio chunks
@@ -55,8 +67,6 @@ bool ChunkerProcessor::getAudioChunk() {
 
 void ChunkerProcessor::releaseUsedAudioChunks() {
 
-    std::lock_guard<std::mutex> lock(getMutex());
-
     for (;;) {
         sample_buf *front = nullptr;
         audioFftQueue.front(&front);
@@ -67,10 +77,24 @@ void ChunkerProcessor::releaseUsedAudioChunks() {
             break;
 
         audioFftQueue.pop();
-        freeQueue->push(front);
+        {
+            std::lock_guard<std::mutex> lock(lock_pFreeQueue);
+            freeQueue.push(front);
+        }
         offset -= frontSize;
         audioFttQueueTotalSize -= frontSize;
     }
+}
+
+bool ChunkerProcessor::getFreeBufferFrontAndPop(sample_buf **buf)
+{
+    std::lock_guard<std::mutex> lock(lock_pFreeQueue);
+    if (freeQueue.front(buf))
+    {
+        freeQueue.pop();
+        return true;
+    }
+    return false;
 }
 
 void ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)

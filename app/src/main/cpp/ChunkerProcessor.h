@@ -9,9 +9,11 @@ class ChunkerProcessor
     AudioQueue audioFftQueue{5};
     int audioFttQueueTotalSize = 0;
 
-    AudioQueue *pRecQueue, *freeQueue;
+    AudioQueue recQueue{5};
+    AudioQueue freeQueue{5};
 
-    std::mutex lock_;
+    std::mutex lock_pRecQueue;
+    std::mutex lock_pFreeQueue;
 
     void PrepareBuffer(Processor *pSpectrum);
     AU_FORMAT *GetSampleData(sample_buf *b0)
@@ -22,10 +24,9 @@ class ChunkerProcessor
 public:
     void begin();
     void end();
-    void setBuffers(AudioQueue *pRecQueue, AudioQueue *freeQueue);
+    bool pushAudioChunk(sample_buf *buf);
     bool getAudioChunk();
+    bool getFreeBufferFrontAndPop(sample_buf **buf);
     void releaseUsedAudioChunks();
     bool Process(Processor *pSpectrum, double decay, double timeOverlap);
-
-    std::mutex &getMutex() { return lock_; }
 };

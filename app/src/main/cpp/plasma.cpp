@@ -62,9 +62,6 @@ struct Context
     pthread_t worker;
     sem_t headwriteprotect;
 
-    AudioQueue freeQueue{16};
-    AudioQueue recQueue{16};
-
     int droppedFrames = 0;
 
     AndroidBitmapInfo  info;
@@ -265,6 +262,7 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetIteratio
 {
     return context.iterationsPerChunk;
 }
+
 extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Spectrogram_GetMillisecondsPerChunk(JNIEnv * env, jclass obj)
 {
     return context.millisecondsPerChunk;
@@ -279,52 +277,35 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedF
     return res;
 }
 
-
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWithAudioMT(JNIEnv * env, jclass obj)
 {
     LOGE("chunker.begin();");
     chunker.begin();
-    chunker.setBuffers(&context.recQueue, &context.freeQueue);
 
     SetRecorderCallback([](void* pCTX, uint32_t msg, void* pData) ->bool {
 
         int recordedChunks = 0;
         {
-            std::lock_guard<std::mutex> lock(chunker.getMutex());
-
             AudioQueue* pFreeQueue = nullptr;       // user
             AudioQueue* pRecQueue = nullptr;        // user
             GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
 
             sample_buf *buf = nullptr;
-
-            //drop frames
-            while(context.recQueue.size()>2)
-            {
-                context.recQueue.front(&buf);
-                context.recQueue.pop();
-                context.freeQueue.push(buf);
-                context.droppedFrames++;
-            }
-
             while (pRecQueue->front(&buf)) {
                 pRecQueue->pop();
-                context.recQueue.push(buf);
-                recordedChunks++;
+                if (chunker.pushAudioChunk(buf)) {
+                    sem_post(&context.headwriteprotect);
+                } else {
+                    context.droppedFrames++;
+                }
             }
 
-            while (context.freeQueue.front(&buf)) {
-                context.freeQueue.pop();
+            while (chunker.getFreeBufferFrontAndPop(&buf)) {
                 pFreeQueue->push(buf);
             }
         }
 
         assert(msg==ENGINE_SERVICE_MSG_RECORDED_AUDIO_AVAILABLE);
-
-        while(recordedChunks--)
-        {
-            sem_post(&context.headwriteprotect);
-        }
 
         return true;
     });
@@ -351,8 +332,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Disconnect
     GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
 
     sample_buf *buf = nullptr;
-    while (context.freeQueue.front(&buf)) {
-        context.freeQueue.pop();
+    while (chunker.getFreeBufferFrontAndPop(&buf)) {
         pFreeQueue->push(buf);
     }
 
