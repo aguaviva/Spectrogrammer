@@ -41,12 +41,12 @@ int FreqToNote(double freq)
 
 class Goertzel : public Processor
 {
-    int m_length;
-    BufferIODouble *m_pInput;
-    BufferIODouble *m_pInput2;
-    BufferIODouble *m_pInput4;
+    int m_length = -1;
+    BufferIODouble *m_pInput = nullptr;
+    BufferIODouble *m_pInput2 = nullptr;
+    BufferIODouble *m_pInput4 = nullptr;
 
-    float m_sampleRate;
+    float m_sampleRate = 0;
 
     int m_minNote, m_maxNote;
 
@@ -86,13 +86,17 @@ public:
 
     virtual const char *GetName() const {  return "Goertzel"; };
 
-    void init(int length, double sampleRate, int minNote, int maxNote)
+    void init(int length, float sampleRate)
     {
-        m_minNote = minNote;
-        m_maxNote = maxNote+1;
         m_sampleRate = sampleRate;
         deinit();
         init(length);
+    }
+
+    void setMaxMinNotes(int minNote, int maxNote)
+    {
+        m_minNote = minNote;
+        m_maxNote = maxNote+1;
     }
 
     int getBins() const { return (m_maxNote-m_minNote); }
@@ -136,7 +140,7 @@ public:
         Decimate(m_pInput2, m_pInput); sampleRate/=2; length/=2; pInput = m_pInput2;
         Decimate(m_pInput4, m_pInput2); sampleRate/=2; length/=2; pInput = m_pInput4;
 
-        assert(getBins() ==m_pOutput->GetSize() );
+        assert(getBins() == m_pOutput->GetSize() );
         for(int i=0;i<m_pOutput->GetSize();i++)
         {
             float frequency = NoteToFreq(m_minNote + i);

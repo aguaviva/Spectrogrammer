@@ -48,79 +48,70 @@
         android:layout_height="wrap_content"
         android:max="100" />
 
-    <TextView
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation='vertical'
+        android:id="@+id/FFT_stuff">
+        <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/fft_size" />
 
-    <SeekBar
-        android:id="@+id/fft_size"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:max="5" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="horizontal"></LinearLayout>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/x_axis_scale_type" />
-
-    <RadioGroup
-        android:id="@+id/horizontalScale"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation='horizontal'>
-
-        <RadioButton
-            android:id="@+id/horizontalScaleLinear"
-            android:layout_width="wrap_content"
+        <SeekBar
+            android:id="@+id/fft_size"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Linear" />
+            android:max="5" />
 
-        <RadioButton
-            android:id="@+id/horizontalScaleLogarithmic"
-            android:layout_width="wrap_content"
+        <TextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Log" />
-        <RadioButton
-            android:id="@+id/horizontalScalePiano"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Piano" />
-        <RadioButton
-            android:id="@+id/horizontalScaleGuitar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Guitar" />
-    </RadioGroup>
+            android:text="@string/x_axis_scale_type" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/y_axis_scale_type" />
-
-    <RadioGroup
-        android:id="@+id/verticalScale"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation='horizontal'>
-
-        <RadioButton
-            android:id="@+id/verticalScaleLinear"
-            android:layout_width="wrap_content"
+        <RadioGroup
+            android:id="@+id/horizontalScale"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Linear" />
+            android:orientation='horizontal'>
 
-        <RadioButton
-            android:id="@+id/verticalScaleLogarithmic"
-            android:layout_width="wrap_content"
+            <RadioButton
+                android:id="@+id/horizontalScaleLinear"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Linear" />
+
+            <RadioButton
+                android:id="@+id/horizontalScaleLogarithmic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Log" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Log" />
-    </RadioGroup>
+            android:text="@string/y_axis_scale_type" />
+
+        <RadioGroup
+            android:id="@+id/verticalScale"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation='horizontal'>
+
+            <RadioButton
+                android:id="@+id/verticalScaleLinear"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Linear" />
+
+            <RadioButton
+                android:id="@+id/verticalScaleLogarithmic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Log" />
+        </RadioGroup>
+    </LinearLayout>
 
 
 </LinearLayout>

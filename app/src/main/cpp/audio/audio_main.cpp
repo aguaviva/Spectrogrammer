@@ -91,11 +91,16 @@ void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ
 
 void SetRecorderCallback(ENGINE_CALLBACK callback)
 {
-  engine.recorder_->RegisterCallback(callback, (void *)&engine);
+    engine.recorder_->RegisterCallback(callback, (void *)&engine);
 }
 
+extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Audio_getSampleRate(JNIEnv *env, jclass type)
+{
+    return engine.fastPathSampleRate_;
+}
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioRecorder(JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioRecorder(JNIEnv *env, jclass type)
+{
   SampleFormat sampleFormat;
   memset(&sampleFormat, 0, sizeof(sampleFormat));
   sampleFormat.pcmFormat_ = static_cast<uint16_t>(engine.bitsPerSample_);
@@ -113,14 +118,16 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_example_plasma_Audio_createAudioR
   return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Audio_getSampleRate(JNIEnv *env, jclass type) {
-
-  return engine.fastPathSampleRate_;
-}
-
-
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_deleteAudioRecorder(JNIEnv *env, jclass type) {
+
   if (engine.recorder_) delete engine.recorder_;
+
+LOGE("Buf Disrtibutions: PlayerDev=%d, RecDev=%d, FreeQ=%d, "
+     "RecQ=%d",
+     0,//engine.player_->dbgGetDevBufCount(),
+     engine.recorder_->dbgGetDevBufCount(), engine.freeBufQueue_->size(),
+     engine.recBufQueue_->size());
+
 
   engine.recorder_ = nullptr;
 }
@@ -135,15 +142,18 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_startPlay(JNIEnv
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_stopPlay(JNIEnv *env, jclass type) {
   engine.recorder_->Stop();
-  delete engine.recorder_;
-  engine.recorder_ = nullptr;
+  //delete engine.recorder_;
+  //engine.recorder_ = nullptr;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_pausePlay(JNIEnv *env, jclass type) {
   engine.recorder_->Pause();
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_deleteSLEngine( JNIEnv *env, jclass type) {
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Audio_deleteSLEngine( JNIEnv *env, jclass type)
+{
+  //assert(engine.freeBufQueue_->size()==engine.bufCount_);
+
   delete engine.recBufQueue_;
   delete engine.freeBufQueue_;
   releaseSampleBufs(engine.bufs_, engine.bufCount_);

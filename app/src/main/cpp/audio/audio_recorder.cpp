@@ -32,13 +32,13 @@ void AudioRecorder::ProcessSLCallback(SLAndroidSimpleBufferQueueItf bq) {
 #endif
   assert(bq == recBufQueueItf_);
   sample_buf *dataBuf = nullptr;
-  devShadowQueue_->front(&dataBuf);
+  bool res = devShadowQueue_->front(&dataBuf);
+  assert(res);
   devShadowQueue_->pop();
-  dataBuf->size_ = dataBuf->cap_;  // device only calls us when it is really
-                                   // full
+  dataBuf->size_ = dataBuf->cap_;  // device only calls us when it is really full
+  recQueue_->push(dataBuf);
 
   callback_(ctx_, ENGINE_SERVICE_MSG_RECORDED_AUDIO_AVAILABLE, dataBuf);
-  recQueue_->push(dataBuf);
 
   sample_buf *freeBuf;
   while (freeQueue_->front(&freeBuf) && devShadowQueue_->push(freeBuf)) {
@@ -93,13 +93,13 @@ AudioRecorder::AudioRecorder(SampleFormat *sampleFormat, SLEngineItf slEngine)
     SLuint32 presetValue = SL_ANDROID_RECORDING_PRESET_VOICE_RECOGNITION;
     (*inputConfig)->SetConfiguration(inputConfig, SL_ANDROID_KEY_RECORDING_PRESET, &presetValue, sizeof(SLuint32));
   }
-
+/*
   // set low latency mode
   if (SL_RESULT_SUCCESS == result) {
     SLuint32 presetValue = SL_ANDROID_PERFORMANCE_LATENCY ;
     (*inputConfig)->SetConfiguration(inputConfig, SL_ANDROID_KEY_PERFORMANCE_MODE, &presetValue, sizeof(SLuint32));
   }
-
+*/
   result = (*recObjectItf_)->Realize(recObjectItf_, SL_BOOLEAN_FALSE);
   SLASSERT(result);
   result = (*recObjectItf_)->GetInterface(recObjectItf_, SL_IID_RECORD, &recItf_);
@@ -175,6 +175,7 @@ SLboolean AudioRecorder::Pause() {
     SLuint32 curState;
     SLresult result = (*recItf_)->GetRecordState(recItf_, &curState);
     SLASSERT(result);
+
     if (curState == SL_RECORDSTATE_RECORDING) {
         SLresult result = (*recItf_)->SetRecordState(recItf_, SL_RECORDSTATE_PAUSED);
         SLASSERT(result);
@@ -191,9 +192,11 @@ SLboolean AudioRecorder::Pause() {
 
 SLboolean AudioRecorder::Stop() {
   // in case already recording, stop recording and clear buffer queue
-  SLuint32 curState;
 
-  SLresult result = (*recItf_)->GetRecordState(recItf_, &curState);
+  SLresult result;
+
+  SLuint32 curState;
+  result = (*recItf_)->GetRecordState(recItf_, &curState);
   SLASSERT(result);
   if (curState == SL_RECORDSTATE_STOPPED) {
     return SL_BOOLEAN_TRUE;
@@ -212,11 +215,13 @@ SLboolean AudioRecorder::Stop() {
 
 AudioRecorder::~AudioRecorder() {
   // destroy audio recorder object, and invalidate all associated interfaces
-  if (recObjectItf_ != nullptr) {
+  if (recObjectItf_ != nullptr)
+  {
     (*recObjectItf_)->Destroy(recObjectItf_);
   }
 
-  if (devShadowQueue_) {
+  if (devShadowQueue_)
+  {
     sample_buf *buf = nullptr;
     while (devShadowQueue_->front(&buf)) {
       devShadowQueue_->pop();
@@ -224,6 +229,7 @@ AudioRecorder::~AudioRecorder() {
     }
     delete (devShadowQueue_);
   }
+
 #ifdef ENABLE_LOG
   if (recLog_) {
     delete recLog_;

@@ -4,6 +4,32 @@
 #include "ChunkerProcessor.h"
 #include "auformat.h"
 
+void ChunkerProcessor::begin()
+{
+    assert(m_started == false);
+    offset = 0;
+    audioFttQueueTotalSize = 0;
+    m_started = true;
+}
+
+void ChunkerProcessor::end()
+{
+    assert(m_started == true);
+    sample_buf *buf = nullptr;
+    while (audioFftQueue.front(&buf))
+    {
+        audioFftQueue.pop();
+        assert(buf);
+
+        //queue audio chunks
+        freeQueue->push(buf);
+        audioFttQueueTotalSize -= AU_LEN(buf->cap_);
+    }
+    assert(audioFttQueueTotalSize==0);
+    m_started = false;
+}
+
+
 void ChunkerProcessor::setBuffers(AudioQueue *pRecQueue_, AudioQueue *freeQueue_)
 {
     pRecQueue = pRecQueue_;
@@ -55,8 +81,10 @@ void ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
     int destOffset = 0;
     sample_buf *buf = nullptr;
 
-    audioFftQueue.peek(&buf, i++);
+    bool res = audioFftQueue.peek(&buf, i++);
+    assert(res==true);
     assert(buf);
+    assert(buf->buf_);
     AU_FORMAT *ptrB0 = GetSampleData(buf) + offset;
     int toWrite = std::min(dataToWrite, (int) (AU_LEN(buf->cap_) - offset));
     assert(toWrite > 0);

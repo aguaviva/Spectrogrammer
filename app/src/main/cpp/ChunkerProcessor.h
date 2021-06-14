@@ -4,6 +4,7 @@
 
 class ChunkerProcessor
 {
+    bool m_started = false;
     int offset = 0;
     AudioQueue audioFftQueue{5};
     int audioFttQueueTotalSize = 0;
@@ -19,6 +20,8 @@ class ChunkerProcessor
     }
 
 public:
+    void begin();
+    void end();
     void setBuffers(AudioQueue *pRecQueue, AudioQueue *freeQueue);
     bool getAudioChunk();
     void releaseUsedAudioChunks();

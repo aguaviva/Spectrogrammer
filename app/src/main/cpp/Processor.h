@@ -14,6 +14,7 @@ protected:
 
 public:
     virtual ~Processor() { };
+    virtual void init(int length, float sampleRate) = 0;
     virtual const char *GetName() const = 0;
 
     virtual int getProcessedLength() const = 0;

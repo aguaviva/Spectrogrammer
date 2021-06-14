@@ -27,9 +27,11 @@ public:
     {
         delete (m_pOutput);
         m_pOutput = new BufferIODouble(outputWidth);
+        m_pOutput->clear();
 
         delete(m_pBins);
         m_pBins = new BufferIOInt(outputWidth);
+        m_pBins->clear();
 
         scaleXtoFreq.init(outputWidth, minFreq, maxFreq);
     }

@@ -12,12 +12,12 @@
 
 class myFFT : public Processor
 {
-    fftw_complex *m_in = nullptr;
-    fftw_complex *m_out = nullptr;
+    fftwf_complex *m_in = nullptr;
+    fftwf_complex *m_out = nullptr;
 
     int m_length;
     float m_fftScaling;
-    fftw_plan m_plan;
+    fftwf_plan m_plan;
     float m_sampleRate;
 
     void init(int length)
@@ -28,9 +28,9 @@ class myFFT : public Processor
         for(int i=0;i<m_length;i++)
             m_fftScaling+=hamming(i);
 
-        m_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * m_length);
-        m_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * m_length);
-        m_plan = fftw_plan_dft_1d(m_length, m_in, m_out, FFTW_FORWARD, FFTW_ESTIMATE);
+        m_in = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * m_length);
+        m_out = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * m_length);
+        m_plan = fftwf_plan_dft_1d(m_length, m_in, m_out, FFTW_FORWARD, FFTW_ESTIMATE);
 
         m_pOutput = new BufferIODouble(getBins() );
         m_pOutput->clear();
@@ -40,9 +40,9 @@ class myFFT : public Processor
     {
         delete(m_pOutput);
 
-        fftw_destroy_plan(m_plan);
-        fftw_free(m_in);
-        fftw_free(m_out);
+        fftwf_destroy_plan(m_plan);
+        fftwf_free(m_in);
+        fftwf_free(m_out);
     }
 
 public:
@@ -90,7 +90,7 @@ public:
 
     void computePower(float decay)
     {
-        fftw_execute(m_plan);
+        fftwf_execute(m_plan);
 
         float totalPower = 0;
 

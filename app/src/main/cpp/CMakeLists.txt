@@ -9,13 +9,14 @@ check_ipo_supported(RESULT supported OUTPUT error)
 add_subdirectory(audio)
 INCLUDE_DIRECTORIES(audio)
 
-set(BUILD_TESTS OFF)
-set(DISABLE_FORTRAN OFF)
-#set(ENABLE_FLOAT ON)
+option (BUILD_TESTS "Build tests" OFF)
+option (ENABLE_FLOAT "single-precision" ON)
+option (DISABLE_FORTRAN "Disable Fortran wrapper routines" ON)
+
 add_subdirectory(fftw-3.3.9)
 INCLUDE_DIRECTORIES(fftw-3.3.9/api)
 
-add_library(plasma SHARED plasma.cpp colormaps.cpp scale.cpp waterfall.cpp auformat.cpp ChunkerProcessor.cpp)
+add_library(plasma SHARED plasma.cpp colormaps.cpp scale.cpp waterfall.cpp auformat.cpp ChunkerProcessor.cpp Processor.cpp)
 
-TARGET_LINK_LIBRARIES(plasma audio fftw3)
+TARGET_LINK_LIBRARIES(plasma audio fftw3f)
 
