@@ -33,41 +33,38 @@ void ChunkerProcessor::end()
     m_started = false;
 }
 
-bool ChunkerProcessor::pushAudioChunk(sample_buf *buf) {
-
+bool ChunkerProcessor::pushAudioChunk(sample_buf *buf)
+{
     std::lock_guard<std::mutex> lock(lock_pRecQueue);
 
-    if (recQueue.size()>2)
-    {
-        std::lock_guard<std::mutex> lock(lock_pFreeQueue);
-        freeQueue.push(buf);
-        return false;
-    }
-
-    recQueue.push(buf);
+    bool res = recQueue.push(buf);
+    assert(res);
     return true;
 }
 
-bool ChunkerProcessor::getAudioChunk() {
-
+bool ChunkerProcessor::getAudioChunk()
+{
     std::lock_guard<std::mutex> lock(lock_pRecQueue);
 
     sample_buf *buf = nullptr;
-    if (recQueue.front(&buf)) {
+    if (recQueue.front(&buf))
+    {
         recQueue.pop();
         assert(buf);
 
         //queue audio chunks
-        audioFftQueue.push(buf);
+        bool res = audioFftQueue.push(buf);
+        assert(res);
         audioFttQueueTotalSize += AU_LEN(buf->cap_);
         return true;
     }
     return false;
 }
 
-void ChunkerProcessor::releaseUsedAudioChunks() {
-
-    for (;;) {
+void ChunkerProcessor::releaseUsedAudioChunks()
+{
+    for (;;)
+    {
         sample_buf *front = nullptr;
         audioFftQueue.front(&front);
         assert(front);
@@ -104,9 +101,8 @@ void ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
     int i = 0;
     int destOffset = 0;
     sample_buf *buf = nullptr;
-
     bool res = audioFftQueue.peek(&buf, i++);
-    assert(res==true);
+    assert(res);
     assert(buf);
     assert(buf->buf_);
     AU_FORMAT *ptrB0 = GetSampleData(buf) + offset;
@@ -117,7 +113,8 @@ void ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
     destOffset += toWrite;
     dataToWrite -= toWrite;
 
-    while (dataToWrite > 0) {
+    while (dataToWrite > 0)
+    {
         buf = nullptr;
         audioFftQueue.peek(&buf, i++);
         assert(buf);

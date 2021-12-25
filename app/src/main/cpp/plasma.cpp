@@ -62,7 +62,7 @@ struct Context
     pthread_t worker;
     sem_t headwriteprotect;
 
-    int droppedFrames = 0;
+    int droppedBuffers = 0;
 
     AndroidBitmapInfo  info;
     void*              pixels = nullptr;
@@ -70,7 +70,8 @@ struct Context
     bool exit = false;
 
     int iterationsPerChunk = 0;
-    double millisecondsPerChunk = 0;
+    double millisecondsWaitingInLoopSemaphore = 0;
+    double millisecondsProcessingChunk        = 0;
     bool redoScale = false;
 } context;
 
@@ -79,12 +80,11 @@ void ProcessChunk()
     bool res = chunker.getAudioChunk();
     assert(res);
 
-    double oldTime = now_ms();
     int iterationsPerChunk = 0;
 
     //if we have enough data queued process the fft
-    while (chunker.Process(pProcessor, decay, timeOverlap)) {
-
+    while (chunker.Process(pProcessor, decay, timeOverlap))
+    {
         pthread_mutex_lock(&context.lock);
 
         if (pScale)
@@ -101,12 +101,6 @@ void ProcessChunk()
                 drawWaterFallLine(&context.info, waterFallRaw, context.pixels,
                                   pScale->GetBuffer());
             }
-
-            if (pProcessorDeferred != nullptr) {
-                delete (pProcessor);
-                pProcessor = pProcessorDeferred;
-                pProcessorDeferred = nullptr;
-            }
         }
 
         pthread_mutex_unlock(&context.lock);
@@ -114,10 +108,16 @@ void ProcessChunk()
         iterationsPerChunk++;
     }
 
-    double currTime = now_ms();
-
     context.iterationsPerChunk = iterationsPerChunk;
-    context.millisecondsPerChunk = currTime - oldTime;
+
+    // if processor changed swap it now
+    //
+    if (pProcessorDeferred != nullptr)
+    {
+        delete (pProcessor);
+        pProcessor = pProcessorDeferred;
+        pProcessorDeferred = nullptr;
+    }
 }
 
 void *loop( void *init)
@@ -126,15 +126,18 @@ void *loop( void *init)
 
     for(;;)
     {
+        // wait for buffer
         sem_wait(&context.headwriteprotect);
         if (context.exit)
             break;
+
         double waitTime = now_ms();
-
         ProcessChunk();
-
         double currTime = now_ms();
-        //LOGI("waiting: %f  process: %f    fifo:(%i / %i)", (waitTime - oldTime), (currTime - waitTime), context.recQueue.size(), context.freeQueue.size());
+
+        context.millisecondsWaitingInLoopSemaphore = waitTime - oldTime;
+        context.millisecondsProcessingChunk        = currTime - waitTime;
+
         oldTime = currTime;
     }
 
@@ -265,13 +268,13 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetIteratio
 
 extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Spectrogram_GetMillisecondsPerChunk(JNIEnv * env, jclass obj)
 {
-    return context.millisecondsPerChunk;
+    return context.millisecondsProcessingChunk;
 }
 
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedFrames(JNIEnv * env, jclass obj)
 {
     static int lastDroppedFrames = 0;
-    int dp = context.droppedFrames;
+    int dp = context.droppedBuffers;
     int res = dp - lastDroppedFrames;
     lastDroppedFrames = dp;
     return res;
@@ -290,18 +293,25 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
             AudioQueue* pRecQueue = nullptr;        // user
             GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
 
-            sample_buf *buf = nullptr;
-            while (pRecQueue->front(&buf)) {
-                pRecQueue->pop();
-                if (chunker.pushAudioChunk(buf)) {
-                    sem_post(&context.headwriteprotect);
-                } else {
-                    context.droppedFrames++;
+            // queue buffers with audio for processing
+            {
+                sample_buf *buf = nullptr;
+                while (pRecQueue->front(&buf)) {
+                    pRecQueue->pop();
+                    if (chunker.pushAudioChunk(buf)) {
+                        sem_post(&context.headwriteprotect);
+                    } else {
+                        context.droppedBuffers++;
+                    }
                 }
             }
 
-            while (chunker.getFreeBufferFrontAndPop(&buf)) {
-                pFreeQueue->push(buf);
+            // return processed buffers
+            {
+                sample_buf *buf = nullptr;
+                while (chunker.getFreeBufferFrontAndPop(&buf)) {
+                    pFreeQueue->push(buf);
+                }
             }
         }
 

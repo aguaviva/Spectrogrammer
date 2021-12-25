@@ -2,15 +2,17 @@
 #include "audio_common.h"
 #include <mutex>
 
+#define QUEUE_SIZE 10
+
 class ChunkerProcessor
 {
     bool m_started = false;
     int offset = 0;
-    AudioQueue audioFftQueue{5};
+    AudioQueue audioFftQueue{QUEUE_SIZE};
     int audioFttQueueTotalSize = 0;
 
-    AudioQueue recQueue{5};
-    AudioQueue freeQueue{5};
+    AudioQueue recQueue{QUEUE_SIZE};
+    AudioQueue freeQueue{QUEUE_SIZE};
 
     std::mutex lock_pRecQueue;
     std::mutex lock_pFreeQueue;
