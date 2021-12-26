@@ -131,6 +131,18 @@ public class WaterfallView extends View {
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        //start();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+
+    }
+
+    @Override
     protected void onDraw(Canvas canvas) {
         float height = (float) getHeight();
         float width = (float) getWidth();
@@ -163,6 +175,17 @@ public class WaterfallView extends View {
                 delay--;
             }
         }
+
+/*
+        int x = 10;
+        int y = (int) (250  + white.descent() - white.ascent());
+        String text = Spectrogram.GetDebugInfo();
+        for (String line: text.split("\n")) {
+            canvas.drawText(line, x, y, white);
+            y += white.descent() - white.ascent();
+        }
+*/
+
 
         if (mProcessorMode == ProcessorMode.FFT) {
             if (mLogX) {
@@ -200,7 +223,12 @@ public class WaterfallView extends View {
 
             // draw time graphs
             float delta = (48000.0f/(Spectrogram.GetFftLength()*Spectrogram.GetOverlap()));
-            for(int i=0;i<50;i++)
+            if (delta*60<100)
+            {
+                delta*=60;
+            }
+
+            for(int i=0;i<60;i++)
             {
                 float yy = y - i*delta;
                 canvas.drawLine(x-20, yy, x+20, yy, white);

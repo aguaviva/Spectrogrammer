@@ -23,17 +23,21 @@ public:
         delete(m_pBins);
     }
 
-    void setOutputWidth(int outputWidth, float minFreq, float maxFreq)
-    {
+    void setOutputWidth(int outputWidth, float minFreq, float maxFreq) {
         delete (m_pOutput);
         m_pOutput = new BufferIODouble(outputWidth);
         m_pOutput->clear();
 
-        delete(m_pBins);
+        delete (m_pBins);
         m_pBins = new BufferIOInt(outputWidth);
         m_pBins->clear();
 
-        scaleXtoFreq.init(outputWidth, minFreq, maxFreq);
+        SetMinMaxFreqs(minFreq, maxFreq);
+    }
+
+    void SetMinMaxFreqs(float minFreq, float maxFreq)
+    {
+        scaleXtoFreq.init(m_pBins->GetSize(), minFreq, maxFreq);
     }
 
     float XtoFreq(float x) const

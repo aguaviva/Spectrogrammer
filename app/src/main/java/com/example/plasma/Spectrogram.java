@@ -26,4 +26,5 @@ public class Spectrogram {
     public static native int Lock(Bitmap bitmap);
     public static native void Unlock(Bitmap bitmap);
     public static native int GetDroppedFrames();
+    public static native String GetDebugInfo();
 }

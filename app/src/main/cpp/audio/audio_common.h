@@ -35,7 +35,7 @@
 #define RECORD_DEVICE_KICKSTART_BUF_COUNT 2
 #define PLAY_KICKSTART_BUFFER_COUNT 3
 #define DEVICE_SHADOW_BUFFER_QUEUE_LEN 4
-#define BUF_COUNT 32
+#define BUF_COUNT 64
 
 struct SampleFormat {
   uint32_t sampleRate_;

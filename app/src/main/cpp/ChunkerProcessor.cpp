@@ -7,85 +7,53 @@
 void ChunkerProcessor::begin()
 {
     assert(m_started == false);
-    offset = 0;
-    audioFttQueueTotalSize = 0;
+    mOffset = 0;
     m_started = true;
 }
 
 void ChunkerProcessor::end()
 {
     assert(m_started == true);
+
     sample_buf *buf = nullptr;
-    while (audioFftQueue.front(&buf))
+    while (recQueue.front(&buf))
     {
-        audioFftQueue.pop();
+        recQueue.pop();
         assert(buf);
 
-        //queue audio chunks
-        {
-            freeQueue.push(buf);
-            std::lock_guard<std::mutex> lock(lock_pFreeQueue);
-        }
-
-        audioFttQueueTotalSize -= AU_LEN(buf->cap_);
+        freeQueue.push(buf);
     }
-    assert(audioFttQueueTotalSize==0);
+
     m_started = false;
 }
 
 bool ChunkerProcessor::pushAudioChunk(sample_buf *buf)
 {
-    std::lock_guard<std::mutex> lock(lock_pRecQueue);
-
     bool res = recQueue.push(buf);
-    assert(res);
-    return true;
+    return res;
 }
 
-bool ChunkerProcessor::getAudioChunk()
+bool ChunkerProcessor::releaseUsedAudioChunks()
 {
-    std::lock_guard<std::mutex> lock(lock_pRecQueue);
-
-    sample_buf *buf = nullptr;
-    if (recQueue.front(&buf))
+    sample_buf *front = nullptr;
+    while(recQueue.front(&front))
     {
-        recQueue.pop();
-        assert(buf);
-
-        //queue audio chunks
-        bool res = audioFftQueue.push(buf);
-        assert(res);
-        audioFttQueueTotalSize += AU_LEN(buf->cap_);
-        return true;
-    }
-    return false;
-}
-
-void ChunkerProcessor::releaseUsedAudioChunks()
-{
-    for (;;)
-    {
-        sample_buf *front = nullptr;
-        audioFftQueue.front(&front);
-        assert(front);
         int frontSize = AU_LEN(front->cap_);
 
-        if (offset < frontSize)
-            break;
+        if (mOffset < frontSize)
+            return true;
 
-        audioFftQueue.pop();
-        {
-            std::lock_guard<std::mutex> lock(lock_pFreeQueue);
-            freeQueue.push(front);
-        }
-        offset -= frontSize;
-        audioFttQueueTotalSize -= frontSize;
+        recQueue.pop();
+        freeQueue.push(front);
+
+        mOffset -= frontSize;
     }
+
+    return false;
 }
 
 bool ChunkerProcessor::getFreeBufferFrontAndPop(sample_buf **buf)
 {
-    std::lock_guard<std::mutex> lock(lock_pFreeQueue);
     if (freeQueue.front(buf))
     {
         freeQueue.pop();
@@ -94,50 +62,57 @@ bool ChunkerProcessor::getFreeBufferFrontAndPop(sample_buf **buf)
     return false;
 }
 
-void ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
+bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
 {
     int dataToWrite = pSpectrum->getProcessedLength();
 
-    int i = 0;
-    int destOffset = 0;
-    sample_buf *buf = nullptr;
-    bool res = audioFftQueue.peek(&buf, i++);
-    assert(res);
-    assert(buf);
-    assert(buf->buf_);
-    AU_FORMAT *ptrB0 = GetSampleData(buf) + offset;
-    int toWrite = std::min(dataToWrite, (int) (AU_LEN(buf->cap_) - offset));
-    assert(toWrite > 0);
-
-    pSpectrum->convertShortToFFT(ptrB0, destOffset, toWrite);
-    destOffset += toWrite;
-    dataToWrite -= toWrite;
-
-    while (dataToWrite > 0)
+    if (m_bufferIndex==0)
     {
-        buf = nullptr;
-        audioFftQueue.peek(&buf, i++);
-        assert(buf);
-        ptrB0 = GetSampleData(buf);
-        toWrite = std::min(dataToWrite, (int) (AU_LEN(buf->cap_)));
+        m_srcOffset = mOffset;
 
-        pSpectrum->convertShortToFFT(ptrB0, destOffset, toWrite);
-        destOffset += toWrite;
-        dataToWrite -= toWrite;
+        //
+        if (releaseUsedAudioChunks()==false)
+            return false;
     }
+
+    sample_buf *buf = nullptr;
+    while(recQueue.peek(&buf, m_bufferIndex))
+    {
+        int bufSize = AU_LEN(buf->cap_);
+        int srcBufLeft = bufSize - m_srcOffset;
+        int destLeft = dataToWrite - m_destOffset;
+
+        int toWrite = std::min(destLeft, srcBufLeft);
+
+        AU_FORMAT *ptrB0 = GetSampleData(buf) + m_srcOffset;
+        pSpectrum->convertShortToFFT(ptrB0, m_destOffset, toWrite);
+
+        m_destOffset += toWrite;
+        m_srcOffset += toWrite;
+
+        if (m_srcOffset==bufSize)
+        {
+            m_srcOffset = 0;
+            m_bufferIndex++;
+        }
+
+        if (m_destOffset == dataToWrite)
+        {
+            m_destOffset = 0;
+            m_bufferIndex = 0;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool ChunkerProcessor::Process(Processor *pSpectrum, double decay, double timeOverlap)
 {
-    if ((audioFttQueueTotalSize - offset) >= pSpectrum->getProcessedLength())
+    if (PrepareBuffer(pSpectrum))
     {
-        PrepareBuffer(pSpectrum);
         pSpectrum->computePower(decay);
-
-        offset += pSpectrum->getProcessedLength() * timeOverlap;
-
-        releaseUsedAudioChunks();
-
+        mOffset += pSpectrum->getProcessedLength() * timeOverlap;
         return true;
     }
 

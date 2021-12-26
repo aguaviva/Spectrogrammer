@@ -62,53 +62,79 @@ struct Context
     pthread_t worker;
     sem_t headwriteprotect;
 
-    int droppedBuffers = 0;
-
     AndroidBitmapInfo  info;
     void*              pixels = nullptr;
-    pthread_mutex_t    lock;
+    pthread_mutex_t    renderingLock;
     bool exit = false;
 
+    int recordedChunks = 0;
+    int processedChunks = 0;
+    int droppedBuffers = 0;
     int iterationsPerChunk = 0;
     double millisecondsWaitingInLoopSemaphore = 0;
     double millisecondsProcessingChunk        = 0;
+
+    AudioQueue* pFreeQueue = nullptr;       // user
+    AudioQueue* pRecQueue = nullptr;        // user
+
     bool redoScale = false;
 } context;
 
 void ProcessChunk()
 {
-    bool res = chunker.getAudioChunk();
-    assert(res);
-
     int iterationsPerChunk = 0;
+
+    // pass available buffers to processor
+    {
+        sample_buf *buf = nullptr;
+        while (context.pRecQueue->front(&buf)) {
+            context.pRecQueue->pop();
+            if (chunker.pushAudioChunk(buf) == false) {
+                context.droppedBuffers++;
+            }
+        }
+    }
 
     //if we have enough data queued process the fft
     while (chunker.Process(pProcessor, decay, timeOverlap))
     {
-        pthread_mutex_lock(&context.lock);
+        context.processedChunks++;
 
         if (pScale)
         {
+            pthread_mutex_lock(&context.renderingLock);
+
             pScale->Build(pProcessor);
 
             // advance waterfall
             waterFallRaw -= 1;
             if (waterFallRaw < barsHeight)
+            {
                 waterFallRaw = context.info.height;
+            }
 
             // draw line
-            if (context.pixels != nullptr) {
-                drawWaterFallLine(&context.info, waterFallRaw, context.pixels,
-                                  pScale->GetBuffer());
+            if (context.pixels != nullptr)
+            {
+                drawWaterFallLine(&context.info, waterFallRaw, context.pixels, pScale->GetBuffer());
             }
-        }
 
-        pthread_mutex_unlock(&context.lock);
+            pthread_mutex_unlock(&context.renderingLock);
+        }
 
         iterationsPerChunk++;
     }
 
     context.iterationsPerChunk = iterationsPerChunk;
+
+
+    // return processed buffers
+    {
+        sample_buf *buf = nullptr;
+        while (chunker.getFreeBufferFrontAndPop(&buf)) {
+            context.pFreeQueue->push(buf);
+        }
+    }
 
     // if processor changed swap it now
     //
@@ -117,11 +143,15 @@ void ProcessChunk()
         delete (pProcessor);
         pProcessor = pProcessorDeferred;
         pProcessorDeferred = nullptr;
+
+        pScale->PreBuild(pProcessor);
     }
 }
 
 void *loop( void *init)
 {
+    LOGE("loop()");
+
     double oldTime = now_ms();
 
     for(;;)
@@ -212,30 +242,30 @@ extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_XToFreq(J
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_HoldData(JNIEnv * env, jclass obj)
 {
-    pthread_mutex_lock(&context.lock);
+    pthread_mutex_lock(&context.renderingLock);
     if (m_pHoldedData==nullptr)
         m_pHoldedData = new BufferIODouble(pScale->GetBuffer()->GetSize());
 
     m_pHoldedData->copy(pScale->GetBuffer());
-    pthread_mutex_unlock(&context.lock);
+    pthread_mutex_unlock(&context.renderingLock);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ClearHeldData(JNIEnv * env, jclass obj)
 {
-    pthread_mutex_lock(&context.lock);
+    pthread_mutex_lock(&context.renderingLock);
     free(m_pHoldedData);
     m_pHoldedData = nullptr;
-    pthread_mutex_unlock(&context.lock);
+    pthread_mutex_unlock(&context.renderingLock);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetScaler(JNIEnv * env, jclass obj, int width, double min, double max, jboolean bLogX, jboolean bLogY)
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetScaler(JNIEnv * env, jclass obj, int screenWidth, double minFreq, double maxFreq, jboolean bLogX, jboolean bLogY)
 {
-    pthread_mutex_lock(&context.lock);
+    pthread_mutex_lock(&context.renderingLock);
     delete(pScale);
     pScale = GetScale(bLogX, bLogY);
-    pScale->setOutputWidth(width, min, max);
+    pScale->setOutputWidth(screenWidth, minFreq, maxFreq);
     pScale->PreBuild(pProcessor);
-    pthread_mutex_unlock(&context.lock);
+    pthread_mutex_unlock(&context.renderingLock);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetProcessorFFT(JNIEnv * env, jclass obj, int length)
@@ -271,6 +301,25 @@ extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Spectrogram_GetMilli
     return context.millisecondsProcessingChunk;
 }
 
+extern "C" JNIEXPORT jstring JNICALL Java_com_example_plasma_Spectrogram_GetDebugInfo(JNIEnv * env, jclass obj)
+{
+    char sout[1024];
+
+    sprintf(sout, "recordedChunks %i\nprocessedChunks %i\ndroppedBuffers %i\nrecordedBufSize %i\nfreeBufSize %i\niterations Per Chunk %i\ndroppedBuffers %i\nTime WaitingInLoopSemaphore %.1f ms\nTime ProcessingChunk %.2fms\n",
+    context.recordedChunks,
+    context.processedChunks,
+    context.droppedBuffers,
+    (context.pRecQueue!=nullptr)?context.pRecQueue->size():0,
+    (context.pFreeQueue!=nullptr)?context.pFreeQueue->size():0,
+    context.iterationsPerChunk,
+    context.droppedBuffers,
+    context.millisecondsWaitingInLoopSemaphore,
+    context.millisecondsProcessingChunk);
+
+    return env->NewStringUTF(sout);
+}
+
+
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedFrames(JNIEnv * env, jclass obj)
 {
     static int lastDroppedFrames = 0;
@@ -285,36 +334,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
     LOGE("chunker.begin();");
     chunker.begin();
 
-    SetRecorderCallback([](void* pCTX, uint32_t msg, void* pData) ->bool {
+    SetRecorderCallback([](void* pCTX, uint32_t msg, void* pData) ->bool
+    {
 
-        int recordedChunks = 0;
-        {
-            AudioQueue* pFreeQueue = nullptr;       // user
-            AudioQueue* pRecQueue = nullptr;        // user
-            GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
-
-            // queue buffers with audio for processing
-            {
-                sample_buf *buf = nullptr;
-                while (pRecQueue->front(&buf)) {
-                    pRecQueue->pop();
-                    if (chunker.pushAudioChunk(buf)) {
-                        sem_post(&context.headwriteprotect);
-                    } else {
-                        context.droppedBuffers++;
-                    }
-                }
-            }
-
-            // return processed buffers
-            {
-                sample_buf *buf = nullptr;
-                while (chunker.getFreeBufferFrontAndPop(&buf)) {
-                    pFreeQueue->push(buf);
-                }
-            }
-        }
-
+        context.recordedChunks++;
+        GetBufferQueues(&sampleRate, &context.pFreeQueue, &context.pRecQueue);
+        sem_post(&context.headwriteprotect);
         assert(msg==ENGINE_SERVICE_MSG_RECORDED_AUDIO_AVAILABLE);
 
         return true;
@@ -358,7 +383,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Disconnect
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Init(JNIEnv * env, jclass  obj, jobject bitmap)
 {
-    pthread_mutex_lock(&context.lock);
+    pthread_mutex_lock(&context.renderingLock);
 
     int ret;
     if ((ret = AndroidBitmap_getInfo(env, bitmap, &context.info)) < 0) {
@@ -370,12 +395,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Init(JNIEn
         LOGE("AndroidBitmap_lockPixels() failed ! error=%d", ret);
     }
 
-    pthread_mutex_unlock(&context.lock);
+    pthread_mutex_unlock(&context.renderingLock);
 }
 
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_Lock(JNIEnv * env, jclass  obj, jobject bitmap)
 {
-    pthread_mutex_lock(&context.lock);
+    pthread_mutex_lock(&context.renderingLock);
 
     if (pScale!=nullptr) {
         drawSpectrumBars(&context.info, context.pixels, barsHeight, pScale->GetBuffer());
@@ -402,7 +427,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Unlock(JNI
         LOGE("AndroidBitmap_lockPixels() failed ! error=%d", ret);
     }
 
-    pthread_mutex_unlock(&context.lock);
+    pthread_mutex_unlock(&context.renderingLock);
 }
 
 #endif
