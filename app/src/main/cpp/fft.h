@@ -3,6 +3,7 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include <cassert>
 #include "Processor.h"
 #include "fftw3.h"
 #include "auformat.h"
@@ -39,10 +40,16 @@ class myFFT : public Processor
     void deinit()
     {
         delete(m_pOutput);
+        m_pOutput = nullptr;
 
         fftwf_destroy_plan(m_plan);
-        fftwf_free(m_in);
+        m_plan = nullptr;
+
         fftwf_free(m_out);
+        m_out = nullptr;
+
+        fftwf_free(m_in);
+        m_in = nullptr;
     }
 
 public:
@@ -56,7 +63,6 @@ public:
     void init(int length, float sampleRate)
     {
         m_sampleRate = sampleRate;
-        deinit();
         init(length);
     }
 
@@ -76,6 +82,8 @@ public:
 
     void convertShortToFFT(const AU_FORMAT *input, int offsetDest, int length)
     {
+        assert(m_length>=offsetDest+length);
+
         for (int i = 0; i < length; i++)
         {
             float val = Uint16ToFloat(&input[i]);
@@ -83,6 +91,7 @@ public:
             int ii= i + offsetDest;
             val *= hamming(ii);
 
+            assert(ii<m_length);
             m_in[ii][REAL] = val;
             m_in[ii][IMAG] = 0;
         }

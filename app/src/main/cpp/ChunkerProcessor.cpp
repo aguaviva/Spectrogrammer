@@ -62,17 +62,22 @@ bool ChunkerProcessor::getFreeBufferFrontAndPop(sample_buf **buf)
     return false;
 }
 
+void ChunkerProcessor::Reset()
+{
+    m_destOffset = 0;
+    m_bufferIndex = 0;
+}
+
 bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
 {
     int dataToWrite = pSpectrum->getProcessedLength();
 
     if (m_bufferIndex==0)
     {
-        m_srcOffset = mOffset;
-
-        //
         if (releaseUsedAudioChunks()==false)
             return false;
+
+        m_srcOffset = mOffset;
     }
 
     sample_buf *buf = nullptr;

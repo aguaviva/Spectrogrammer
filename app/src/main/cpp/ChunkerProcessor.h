@@ -26,6 +26,7 @@ class ChunkerProcessor
 public:
     void begin();
     void end();
+    void Reset();
     bool pushAudioChunk(sample_buf *buf);
     bool getFreeBufferFrontAndPop(sample_buf **buf);
     bool releaseUsedAudioChunks();
