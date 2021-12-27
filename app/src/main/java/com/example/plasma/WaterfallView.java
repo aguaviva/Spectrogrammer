@@ -32,6 +32,7 @@ public class WaterfallView extends View {
     private int barsHeight = 200;
     private boolean mLogX = false;
     private boolean mLogY = true;
+    private boolean mShowDebugInfo = false;
     private ProcessorMode mProcessorMode = ProcessorMode.NONE;
     private Overlay mOverlay = Overlay.NONE;
     Rect bars;
@@ -71,6 +72,8 @@ public class WaterfallView extends View {
     public boolean getLogX() { return mLogX; }
     public void setLogY(boolean b) { mLogY = b; updateScaler(); }
     public boolean getLogY() { return mLogY; }
+    public void setShowDebugInfo(boolean checked) { mShowDebugInfo = checked; }
+    public boolean getShowDebugInfo() { return mShowDebugInfo; }
     public void updateScaler()
     {
         if (mBitmap==null)
@@ -131,18 +134,6 @@ public class WaterfallView extends View {
     }
 
     @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        //start();
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-
-    }
-
-    @Override
     protected void onDraw(Canvas canvas) {
         float height = (float) getHeight();
         float width = (float) getWidth();
@@ -176,16 +167,15 @@ public class WaterfallView extends View {
             }
         }
 
-/*
-        int x = 10;
-        int y = (int) (250  + white.descent() - white.ascent());
-        String text = Spectrogram.GetDebugInfo();
-        for (String line: text.split("\n")) {
-            canvas.drawText(line, x, y, white);
-            y += white.descent() - white.ascent();
+        if (mShowDebugInfo) {
+            int x = 10;
+            int y = (int) (250 + white.descent() - white.ascent());
+            String text = Spectrogram.GetDebugInfo();
+            for (String line : text.split("\n")) {
+                canvas.drawText(line, x, y, white);
+                y += white.descent() - white.ascent();
+            }
         }
-*/
-
 
         if (mProcessorMode == ProcessorMode.FFT) {
             if (mLogX) {

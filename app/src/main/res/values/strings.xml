@@ -15,6 +15,7 @@
     <string name="ScaleLogarithmic">ScaleLogarithmic</string>
     <string name="horizontalScaleSelected">Horizontal Scale Selected</string>
     <string name="verticalScaleSelected">Vertical Scale Selected</string>
+    <string name="showDebugInfo">Show Debug Info</string>
     <string name="volume">volume</string>
     <string name="play">play</string>
     <string name="ruler">ruler</string>

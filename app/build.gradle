@@ -8,7 +8,7 @@ android {
     }
         signingConfigs {
         release_111111 {
-            storeFile file('C:\\Users\\amdev02\\Documents\\AndroidStudio\\caca.jks')
+            storeFile file('C:\\Users\\raul\\git\\signing_keys.jks')
             storePassword '111111'
             keyAlias 'key0'
             keyPassword '111111'

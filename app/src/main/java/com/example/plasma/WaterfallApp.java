@@ -207,6 +207,20 @@ public class WaterfallApp extends AppCompatActivity
             popupView.findViewById(R.id.FFT_stuff).setVisibility( View.GONE);
         }
 
+        //--------------------------------  check buttons
+        View.OnClickListener CheckBoxListener = new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                boolean checked = ((CheckBox) view).isChecked();
+                switch (view.getId()) {
+                    case R.id.debug: mWaterfallView.setShowDebugInfo(checked); break;
+                }
+            }
+        };
+
+        CheckBox debug = popupView.findViewById(R.id.debug);
+        debug.setOnClickListener(CheckBoxListener);
+
         //--------------------------------
         int width = LinearLayout.LayoutParams.MATCH_PARENT;
         int height = LinearLayout.LayoutParams.WRAP_CONTENT;
@@ -236,6 +250,7 @@ public class WaterfallApp extends AppCompatActivity
             mWaterfallView.setLogY(false);
         }
 
+        mWaterfallView.setShowDebugInfo(sharedPref.getBoolean(getString(R.string.showDebugInfo), false));
         Spectrogram.SetBarsHeight(200);
     }
 
@@ -253,6 +268,8 @@ public class WaterfallApp extends AppCompatActivity
             editor.putBoolean(getString(R.string.horizontalScaleSelected), mWaterfallView.getLogX());
             editor.putBoolean(getString(R.string.verticalScaleSelected), mWaterfallView.getLogY());
         }
+
+        editor.putBoolean(getString(R.string.showDebugInfo), mWaterfallView.getShowDebugInfo());
 
         editor.apply();
         editor.commit();

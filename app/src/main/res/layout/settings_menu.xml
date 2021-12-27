@@ -48,15 +48,16 @@
         android:layout_height="wrap_content"
         android:max="100" />
 
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    <LinearLayout
+        android:id="@+id/FFT_stuff"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation='vertical'
-        android:id="@+id/FFT_stuff">
+        android:orientation='vertical'>
+
         <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/fft_size" />
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/fft_size" />
 
         <SeekBar
             android:id="@+id/fft_size"
@@ -110,8 +111,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Log" />
+
         </RadioGroup>
     </LinearLayout>
+
+    <CheckBox
+        android:id="@+id/debug"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="show debug data" />
 
 
 </LinearLayout>

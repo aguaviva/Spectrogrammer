@@ -126,7 +126,7 @@ void ProcessChunk()
     }
 
     context.iterationsPerChunk = iterationsPerChunk;
-    
+
     // return processed buffers
     {
         sample_buf *buf = nullptr;
