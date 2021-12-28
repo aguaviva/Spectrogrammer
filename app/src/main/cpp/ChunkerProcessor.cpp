@@ -7,8 +7,11 @@
 void ChunkerProcessor::begin()
 {
     assert(m_started == false);
-    mOffset = 0;
+    m_offset = 0;
     m_started = true;
+    m_destOffset = 0;
+    m_bufferIndex = 0;
+
 }
 
 void ChunkerProcessor::end()
@@ -40,13 +43,13 @@ bool ChunkerProcessor::releaseUsedAudioChunks()
     {
         int frontSize = AU_LEN(front->cap_);
 
-        if (mOffset < frontSize)
+        if (m_offset < frontSize)
             return true;
 
         recQueue.pop();
         freeQueue.push(front);
 
-        mOffset -= frontSize;
+        m_offset -= frontSize;
     }
 
     return false;
@@ -77,7 +80,7 @@ bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
         if (releaseUsedAudioChunks()==false)
             return false;
 
-        m_srcOffset = mOffset;
+        m_srcOffset = m_offset;
     }
 
     sample_buf *buf = nullptr;
@@ -117,7 +120,7 @@ bool ChunkerProcessor::Process(Processor *pSpectrum, double decay, double timeOv
     if (PrepareBuffer(pSpectrum))
     {
         pSpectrum->computePower(decay);
-        mOffset += pSpectrum->getProcessedLength() * timeOverlap;
+        m_offset += pSpectrum->getProcessedLength() * timeOverlap;
         return true;
     }
 

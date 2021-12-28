@@ -7,9 +7,7 @@
 class ChunkerProcessor
 {
     bool m_started = false;
-    int mOffset = 0;
-
-    int m_dataToWrite = 0;
+    int m_offset = 0;
     int m_srcOffset = 0;
     int m_destOffset = 0;
     int m_bufferIndex = 0;

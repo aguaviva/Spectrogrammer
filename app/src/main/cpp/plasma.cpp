@@ -78,7 +78,9 @@ struct Context
     AudioQueue* pRecQueue = nullptr;        // user
 
     bool redoScale = false;
-} context;
+};
+
+Context context;
 
 void ProcessChunk()
 {
@@ -149,8 +151,6 @@ void ProcessChunk()
         pScale->PreBuild(pProcessor);
         pthread_mutex_unlock(&context.scaleLock);
     }
-
-
 }
 
 void *loop( void *init)
