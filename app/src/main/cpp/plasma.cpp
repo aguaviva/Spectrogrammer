@@ -12,6 +12,7 @@
 #include "ScaleBufferBase.h"
 #include "ScaleBuffer.h"
 #include "ChunkerProcessor.h"
+#include "BufferAverage.h"
 
 #undef ANDROID
 #define ANDROID
@@ -36,6 +37,8 @@ ScaleBufferBase *pScale = nullptr;
 BufferIODouble *m_pHoldedData = nullptr;
 
 ChunkerProcessor chunker;
+
+BufferAverage bufferAverage;
 
 float sampleRate = 48000.0f;
 float timeOverlap = .5f; //in seconds
@@ -67,6 +70,9 @@ struct Context
     pthread_mutex_t    scaleLock;
     bool exit = false;
 
+    float volume = 1;
+
+    // perf counters
     int recordedChunks = 0;
     int processedChunks = 0;
     int droppedBuffers = 0;
@@ -100,13 +106,19 @@ void ProcessChunk()
     //if we have enough data queued process the fft
     while (chunker.Process(pProcessor, decay, timeOverlap))
     {
+        BufferIODouble *bufferIO = pProcessor->getBufferIO();
+
+        bufferIO = bufferAverage.Do(bufferIO);
+        if (bufferIO==nullptr)
+            break;
+
         context.processedChunks++;
 
         if (pScale)
         {
             pthread_mutex_lock(&context.scaleLock);
 
-            pScale->Build(pProcessor);
+            pScale->Build(bufferIO, context.volume);
 
             // advance waterfall
             waterFallRaw -= 1;
@@ -193,10 +205,35 @@ ScaleBufferBase *GetScale(bool logX, bool logY)
     return nullptr;
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetProcessorFFT(JNIEnv * env, jclass obj, int length)
+{
+    myFFT *pFFT = new myFFT();
+    pFFT->init(length, sampleRate);
+
+    if (pProcessor==nullptr)
+        pProcessor = pFFT;
+    else
+        pProcessorDeferred = pFFT;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetProcessorGoertzel(JNIEnv * env, jclass obj, int length)
+{
+    Goertzel *pGoertzel = new Goertzel();
+    pGoertzel->setMaxMinNotes(1, 88);
+    pGoertzel->init(length, sampleRate);
+
+    if (pProcessor==nullptr)
+        pProcessor = pGoertzel;
+    else
+        pProcessorDeferred = pGoertzel;
+}
 extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetFftLength(JNIEnv * env, jclass obj)
 {
     return pProcessor->getProcessedLength();
 }
+
+/////////////////////////////////////////////////// get/sets ///////////////////////////////////////////////////////
+
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetBarsHeight(JNIEnv * env, jclass obj, jint  barsHeight_)
 {
@@ -228,11 +265,20 @@ extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetDecay
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetVolume(JNIEnv * env, jclass obj, jfloat volume_)
 {
-    pScale->setVolume(volume_);
+    context.volume=volume_;
 }
 extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetVolume(JNIEnv * env, jclass obj)
 {
-    return pScale->getVolume();
+    return context.volume;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetAverageCount(JNIEnv * env, jclass obj, jint c)
+{
+    bufferAverage.setAverageCount(c);
+}
+extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetAverageCount(JNIEnv * env, jclass obj)
+{
+    return bufferAverage.getAverageCount();
 }
 
 extern "C" JNIEXPORT float JNICALL Java_com_example_plasma_Spectrogram_FreqToX(JNIEnv * env, jclass obj, double freq)
@@ -263,6 +309,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ClearHeldD
     pthread_mutex_unlock(&context.scaleLock);
 }
 
+/////////////////////////////////////////////////// Perf counter ///////////////////////////////////////////////////////
+
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetScaler(JNIEnv * env, jclass obj, int screenWidth, double minFreq, double maxFreq, jboolean bLogX, jboolean bLogY)
 {
     pthread_mutex_lock(&context.scaleLock);
@@ -271,29 +319,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetScaler(
     pScale->setOutputWidth(screenWidth, minFreq, maxFreq);
     pScale->PreBuild(pProcessor);
     pthread_mutex_unlock(&context.scaleLock);
-}
-
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetProcessorFFT(JNIEnv * env, jclass obj, int length)
-{
-    myFFT *pFFT = new myFFT();
-    pFFT->init(length, sampleRate);
-
-    if (pProcessor==nullptr)
-        pProcessor = pFFT;
-    else
-        pProcessorDeferred = pFFT;
-}
-
-extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetProcessorGoertzel(JNIEnv * env, jclass obj, int length)
-{
-    Goertzel *pGoertzel = new Goertzel();
-    pGoertzel->setMaxMinNotes(1, 88);
-    pGoertzel->init(length, sampleRate);
-
-    if (pProcessor==nullptr)
-        pProcessor = pGoertzel;
-    else
-        pProcessorDeferred = pGoertzel;
 }
 
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetIterationsPerChunk(JNIEnv * env, jclass obj)
@@ -333,6 +358,8 @@ extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedF
     lastDroppedFrames = dp;
     return res;
 }
+
+/////////////////////////////////////////////////// Connect/disconnect ///////////////////////////////////////////////////////
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWithAudioMT(JNIEnv * env, jclass obj)
 {

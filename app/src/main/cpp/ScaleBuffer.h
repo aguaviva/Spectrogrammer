@@ -23,7 +23,8 @@ public:
         delete(m_pBins);
     }
 
-    void setOutputWidth(int outputWidth, float minFreq, float maxFreq) {
+    void setOutputWidth(int outputWidth, float minFreq, float maxFreq)
+    {
         delete (m_pOutput);
         m_pOutput = new BufferIODouble(outputWidth);
         m_pOutput->clear();
@@ -32,11 +33,6 @@ public:
         m_pBins = new BufferIOInt(outputWidth);
         m_pBins->clear();
 
-        SetMinMaxFreqs(minFreq, maxFreq);
-    }
-
-    void SetMinMaxFreqs(float minFreq, float maxFreq)
-    {
         scaleXtoFreq.init(m_pBins->GetSize(), minFreq, maxFreq);
     }
 
@@ -61,12 +57,12 @@ public:
         }
     }
 
-    void Build(Processor *pProc)
+    void Build(BufferIODouble *inputIO, float volume)
     {
         //set bins to min value
         m_pOutput->clear();
 
-        float *input = pProc->getBufferIO()->GetData();
+        float *input = inputIO->GetData();
         float *output = m_pOutput->GetData();
         int *pBins = m_pBins->GetData();
 
@@ -99,16 +95,16 @@ public:
         if (useLogY)
         {
             // log Y axis
+            const float ref = 32768/volume;
             for (int i = 0; i < m_pOutput->GetSize(); i++)
             {
-                const float ref = 32768;
                 output[i] = convertToDecibels(output[i], ref);
                 output[i] = clamp(unlerp( -120, -20, output[i]), 0, 1);
             }
         }
         else
         {
-            float max =  32768/mVolume;
+            float max =  32768/volume;
             for (int i = 0; i < m_pOutput->GetSize(); i++)
             {
                 output[i] = clamp(unlerp( 0, max , output[i]), 0, 1);

@@ -15,10 +15,9 @@
  */
 package com.example.plasma;
 
-import android.Manifest;
+
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.media.AudioManager;
@@ -26,8 +25,6 @@ import android.os.Bundle;
 import android.content.Context;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -36,19 +33,34 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
+import android.widget.Spinner;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class WaterfallApp extends AppCompatActivity
 {
     public static final String EXTRA_MODE = "com.example.plasma.MODE";
     public static final String [] modes = { "FFT", "Music"};
 
+    SeekBarHelper m_Volume;
+    SeekBarHelper m_FFTOverlap;
+    SeekBarHelper m_BarsDecay;
+    SeekBarHelper m_AverageCount;
+    SeekBarHelper m_FFTSize;
+
     WaterfallView mWaterfallView;
+
+    View popupView;
 
     // Called when the activity is first created.
     @Override
@@ -64,6 +76,72 @@ public class WaterfallApp extends AppCompatActivity
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         mWaterfallView = (WaterfallView) findViewById(R.id.WaterfallView);
+
+        // inflate settings preferences now to avoid hiccups
+        LayoutInflater inflater = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        popupView = inflater.inflate(R.layout.settings_menu, null);
+
+        // init preferences
+
+        m_Volume = new SeekBarHelper(getString(R.string.volume), 100, new SeekBarHelper.Listener() {
+            @Override
+            public void setValue(int v) {
+                Spectrogram.SetVolume( (float) v /100.0f);
+            }
+
+            @Override
+            public int getValue() {
+                return (int)(Spectrogram.GetVolume() * 100);
+            }
+        });
+
+        m_FFTOverlap = new SeekBarHelper(getString(R.string.fft_overlap), 50, new SeekBarHelper.Listener() {
+            @Override
+            public void setValue(int v) {
+                Spectrogram.SetOverlap((float) v / 100.0f);
+            }
+
+            @Override
+            public int getValue() {
+                return (int)(Spectrogram.GetOverlap() * 100);
+            }
+        });
+
+        m_BarsDecay = new SeekBarHelper(getString(R.string.bars_decay), 50, new SeekBarHelper.Listener() {
+            @Override
+            public void setValue(int v) {
+                Spectrogram.SetDecay((float) v / 100.0f);
+            }
+
+            @Override
+            public int getValue() {
+                return (int)(Spectrogram.GetDecay() * 100);
+            }
+        });
+
+        m_AverageCount = new SeekBarHelper(getString(R.string.set_average_count), 1, new SeekBarHelper.Listener() {
+            @Override
+            public void setValue(int v) {
+                Spectrogram.SetAverageCount(v);
+            }
+
+            @Override
+            public int getValue() {
+                return Spectrogram.GetAverageCount();
+            }
+        });
+
+        m_FFTSize = new SeekBarHelper(getString(R.string.fft_size), 4 /*4096*/, new SeekBarHelper.Listener() {
+            @Override
+            public void setValue(int v) {
+                Spectrogram.SetProcessorFFT(1 << (v + 8));
+            }
+
+            @Override
+            public int getValue() {
+                return (int) (Math.log(Spectrogram.GetFftLength()) / Math.log(2)) - 8;
+            }
+        });
 
         Intent intent = getIntent();
         String message = intent.getStringExtra(EXTRA_MODE);
@@ -121,84 +199,79 @@ public class WaterfallApp extends AppCompatActivity
                 mMeasuring = !mMeasuring;
                 mWaterfallView.SetMeasuring(mMeasuring);
                 return true;
-            case R.id.exit:
-                finish();
-                System.exit(0);
-                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
     }
 
-    void SetSeekBar(View popupView, int id, int value, SeekBar.OnSeekBarChangeListener listener)
-    {
-        SeekBar seek = popupView.findViewById(id);
-        seek.setProgress(value);
-        seek.setOnSeekBarChangeListener(listener);
-    }
-
     public void ShowSettingsDialog() {
 
-        LayoutInflater inflater = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-        View popupView = inflater.inflate(R.layout.settings_menu, null);
-
         //-------------------------------- sliders
-        SeekBar.OnSeekBarChangeListener listener = new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                switch (seekBar.getId()) {
-                    case R.id.fft_overlap: Spectrogram.SetOverlap((float) progress / 100.0f); break;
-                    case R.id.bars_decay: Spectrogram.SetDecay((float) progress / 100.0f); break;
-                    case R.id.fft_size: Spectrogram.SetProcessorFFT(1 << (progress + 8)); break;
-                    case R.id.volume: Spectrogram.SetVolume((float) progress / 100.0f); break;
-                }
-            }
+        m_Volume.Init(popupView, R.id.volume);
+        m_FFTOverlap.Init(popupView, R.id.fft_overlap);
+        m_BarsDecay.Init(popupView, R.id.bars_decay);
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
-        };
-
-        SetSeekBar(popupView, R.id.volume, (int) (Spectrogram.GetVolume() * 100), listener);
-        SetSeekBar(popupView, R.id.fft_overlap, (int) (Spectrogram.GetOverlap() * 100), listener);
-        SetSeekBar(popupView, R.id.bars_decay, (int) (Spectrogram.GetDecay() * 100), listener);
         if (mWaterfallView.getProcessor()==WaterfallView.ProcessorMode.FFT) {
-            SetSeekBar(popupView, R.id.fft_size, (int) (Math.log(Spectrogram.GetFftLength()) / Math.log(2)) - 8, listener);
+            m_AverageCount.Init(popupView, R.id.average_count);
+            m_FFTSize.Init(popupView, R.id.fft_size);
         }
 
         //--------------------------------  axis radio buttons
         if (mWaterfallView.getProcessor()==WaterfallView.ProcessorMode.FFT)
         {
-            RadioGroup.OnCheckedChangeListener RadioButtonListener = new RadioGroup.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(RadioGroup radioGroup, int checkedId) {
-                    switch (checkedId) {
-                        case R.id.horizontalScaleLogarithmic: mWaterfallView.setLogX(true); break;
-                        case R.id.horizontalScaleLinear: mWaterfallView.setLogX(false); break;
-                        case R.id.verticalScaleLogarithmic: mWaterfallView.setLogY(true); break;
-                        case R.id.verticalScaleLinear: mWaterfallView.setLogY(false); break;
+            String[] plants = new String[]{
+                    "Log",
+                    "Linear"
+            };
+
+            final List<String> plantsList = new ArrayList<>(Arrays.asList(plants));
+
+            // Initializing an ArrayAdapter
+            final ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<String>(this,R.layout.spinner_item,plantsList);
+            spinnerArrayAdapter.setDropDownViewResource(R.layout.spinner_item);
+
+            AdapterView.OnItemSelectedListener ItemSelectedListener = new AdapterView.OnItemSelectedListener() {
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id)
+                {
+                    switch (parent.getId())
+                    {
+                        case R.id.x_axis:
+                            if (position==0)
+                            {
+                                mWaterfallView.setLogX(true);
+                            }
+                            else
+                            {
+                                mWaterfallView.setLogX(false);
+                            }
+                            break;
+                        case R.id.y_axis:
+                            if (position==0)
+                            {
+                                mWaterfallView.setLogY(true);
+                            }
+                            else
+                            {
+                                mWaterfallView.setLogY(false);
+                            }
+                            break;
                     }
+                }
+                public void onNothingSelected(AdapterView<?> parent)
+                {
+
                 }
             };
 
-            {
-                RadioGroup axisScaleGroup = (RadioGroup) popupView.findViewById(R.id.horizontalScale);
-                axisScaleGroup.setOnCheckedChangeListener(RadioButtonListener);
-                RadioButton radioButton = (RadioButton) popupView.findViewById(R.id.horizontalScaleLogarithmic);
-                radioButton.setChecked(mWaterfallView.getLogX());
-                radioButton = (RadioButton) popupView.findViewById(R.id.horizontalScaleLinear);
-                radioButton.setChecked(!mWaterfallView.getLogX());
-            }
+            Spinner spinnerX = (Spinner) popupView.findViewById(R.id.x_axis);
+            spinnerX.setAdapter(spinnerArrayAdapter);
+            spinnerX.setOnItemSelectedListener(ItemSelectedListener);
+            spinnerX.setSelection(mWaterfallView.getLogX()?0:1);
 
-            {
-                RadioGroup axisScaleGroup = (RadioGroup) popupView.findViewById(R.id.verticalScale);
-                axisScaleGroup.setOnCheckedChangeListener(RadioButtonListener);
-                RadioButton radioButton = (RadioButton) popupView.findViewById(R.id.verticalScaleLogarithmic);
-                radioButton.setChecked(mWaterfallView.getLogY());
-                radioButton = (RadioButton) popupView.findViewById(R.id.verticalScaleLinear);
-                radioButton.setChecked(!mWaterfallView.getLogY());
-            }
+            Spinner spinnerY = (Spinner) popupView.findViewById(R.id.y_axis);
+            spinnerY.setAdapter(spinnerArrayAdapter);
+            spinnerY.setOnItemSelectedListener(ItemSelectedListener);
+            spinnerY.setSelection(mWaterfallView.getLogY()?0:1);
 
             popupView.findViewById(R.id.FFT_stuff).setVisibility( View.VISIBLE);
         }
@@ -234,12 +307,15 @@ public class WaterfallApp extends AppCompatActivity
     public void LoadPreferences()
     {
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
-        Spectrogram.SetOverlap(sharedPref.getFloat(getString(R.string.fft_overlap), 0.5f));
-        Spectrogram.SetDecay(sharedPref.getFloat(getString(R.string.bars_decay), 0.9f));
+
+        m_FFTOverlap.loadPreference(sharedPref);
+        m_Volume.loadPreference(sharedPref);
+        m_BarsDecay.loadPreference(sharedPref);
 
         if (mWaterfallView.getProcessor()==WaterfallView.ProcessorMode.FFT)
         {
-            Spectrogram.SetProcessorFFT(sharedPref.getInt(getString(R.string.fft_size), 4096));
+            m_AverageCount.loadPreference(sharedPref);
+            m_FFTSize.loadPreference(sharedPref);
             mWaterfallView.setLogX(sharedPref.getBoolean(getString(R.string.horizontalScaleSelected), true));
             mWaterfallView.setLogY(sharedPref.getBoolean(getString(R.string.verticalScaleSelected), true));
         }
@@ -259,12 +335,14 @@ public class WaterfallApp extends AppCompatActivity
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
 
-        editor.putFloat(getString(R.string.fft_overlap), Spectrogram.GetOverlap());
-        editor.putFloat(getString(R.string.bars_decay), Spectrogram.GetDecay());
+        m_FFTOverlap.savePreference(editor);
+        m_Volume.savePreference(editor);
+        m_BarsDecay.savePreference(editor);
 
         if (mWaterfallView.getProcessor()==WaterfallView.ProcessorMode.FFT)
         {
-            editor.putInt(getString(R.string.fft_size), Spectrogram.GetFftLength());
+            m_AverageCount.savePreference(editor);
+            m_FFTSize.savePreference(editor);
             editor.putBoolean(getString(R.string.horizontalScaleSelected), mWaterfallView.getLogX());
             editor.putBoolean(getString(R.string.verticalScaleSelected), mWaterfallView.getLogY());
         }

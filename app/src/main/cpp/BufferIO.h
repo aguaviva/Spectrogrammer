@@ -45,6 +45,25 @@ public:
         memcpy(m_rout, pIn->GetData(), m_size*sizeof(type));
     }
 
+    void add(BufferIO<type> *pIn)
+    {
+        assert(pIn->GetSize()==GetSize());
+
+        float *pDataIn = pIn->GetData();
+        for(int i=0;i<pIn->GetSize();i++)
+        {
+            m_rout[i] += pDataIn[i];
+        }
+    }
+
+    void mul(float k)
+    {
+        for(int i=0;i<GetSize();i++)
+        {
+            m_rout[i] *= k;
+        }
+    }
+
     type *GetData() { return m_rout; }
     int GetSize() { return m_size; }
 };

@@ -213,6 +213,7 @@ public class WaterfallView extends View {
 
             // draw time graphs
             float delta = (48000.0f/(Spectrogram.GetFftLength()*Spectrogram.GetOverlap()));
+            delta /= Spectrogram.GetAverageCount();
             if (delta*60<100)
             {
                 delta*=60;

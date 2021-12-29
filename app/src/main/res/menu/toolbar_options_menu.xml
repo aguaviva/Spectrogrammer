@@ -24,9 +24,6 @@
         app:showAsAction="ifRoom"
         android:title="@string/ruler"/>
 
-    <item
-        android:id="@+id/exit"
-        app:showAsAction="never"
-        android:title="@string/exit"/>
+
 
 </menu>

@@ -8,6 +8,8 @@ public class Spectrogram {
     public static native void SetOverlap(float timeOverlap);
     public static native void SetVolume(float volume);
     public static native float GetVolume();
+    public static native void SetAverageCount(int progress);
+    public static native int GetAverageCount();
     public static native void SetDecay(float decay);
     public static native float GetOverlap();
     public static native float GetDecay();
