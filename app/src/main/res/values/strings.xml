@@ -21,6 +21,10 @@
     <string name="play">play</string>
     <string name="ruler">ruler</string>
     <string name="exit">exit</string>
+    <string name="show_debug_data">show debug data</string>
+    <string name="show_time_scale">show time scale</string>
+    <string name="pause_when_waterfall_reaches_the_bottom">Pause when waterfall reaches the bottom</string>
+    <string name="time_scale_type">Time scale :</string>
     <string-array name="processors_array">
         <item>FFT</item>
         <item>Music</item>

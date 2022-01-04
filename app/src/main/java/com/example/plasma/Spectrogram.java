@@ -21,7 +21,7 @@ public class Spectrogram {
 
     public static native void HoldData();
     public static native void ClearHeldData();
-
+    public static native void ResetScanline();
     public static native void Init(Bitmap bitmap);
     public static native void ConnectWithAudioMT();
     public static native void Disconnect();

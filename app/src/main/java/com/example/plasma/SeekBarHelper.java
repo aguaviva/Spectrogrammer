@@ -3,6 +3,7 @@ package com.example.plasma;
 import android.content.SharedPreferences;
 import android.view.View;
 import android.widget.SeekBar;
+import android.widget.TextView;
 
 public class SeekBarHelper
 {
@@ -10,6 +11,7 @@ public class SeekBarHelper
     {
         public void setValue(int v);
         public int getValue();
+        public String getString(int v);
     }
 
     private Listener m_listener;
@@ -23,15 +25,17 @@ public class SeekBarHelper
         this.m_listener = listener;
     }
 
-    public void Init(View popupView, int SeekBarId)
+    public void Init(View popupView, int SeekBarId, int TextViewId)
     {
         SeekBar seek = popupView.findViewById(SeekBarId);
+        final TextView textView = popupView.findViewById(TextViewId);
 
         seek.setOnSeekBarChangeListener( new SeekBar.OnSeekBarChangeListener()
         {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
             {
                 m_listener.setValue(progress);
+                textView.setText(m_string + "   " + m_listener.getString(progress));
             }
 
             @Override
@@ -41,7 +45,9 @@ public class SeekBarHelper
             public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        seek.setProgress(m_listener.getValue());
+        int v = m_listener.getValue();
+        seek.setProgress(v);
+        textView.setText(m_string+ "   " + m_listener.getString(v));
     }
 
     public void savePreference(SharedPreferences.Editor editor)

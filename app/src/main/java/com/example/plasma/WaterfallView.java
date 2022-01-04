@@ -6,11 +6,32 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.icu.util.TimeZone;
+import android.os.Build;
+import android.os.Environment;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.Date;
+
+import androidx.annotation.RequiresApi;
+
 public class WaterfallView extends View {
+
+    interface Listener
+    {
+        public void OnHitBottom(Bitmap bitmap);
+    }
 
     public enum ProcessorMode {
         NONE,
@@ -24,26 +45,31 @@ public class WaterfallView extends View {
         GUITAR,
     }
 
-    private Bitmap mBitmap = null;
-    private long mStartTime;
     private final Paint white;
     private final Paint gray;
     private final Paint drawPaint;
-    private int barsHeight = 200;
+    private Bitmap mBitmap = null;
+    private int mBarsHeight = 200;
     private boolean mLogX = false;
     private boolean mLogY = true;
     private boolean mShowDebugInfo = false;
+
+    private DateTimeFormatter mFormatter = null;
+    private long mScaleTimeAtTop = 0;
+    private float  mSecondsPerScreen = 0;
+
+    private int mScaleType = 0;
     private ProcessorMode mProcessorMode = ProcessorMode.NONE;
     private Overlay mOverlay = Overlay.NONE;
-    Rect bars;
-
-    int delay = 0;
-
-    Viewport viewport = new Viewport();
+    private Rect bars;
+    private long delay = 0;
+    private Viewport viewport = new Viewport();
+    private Listener mCallbacks = null;
 
     public WaterfallView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
+        mFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         white = new Paint();
         white.setColor(Color.WHITE);
         int scaledSize = getResources().getDimensionPixelSize(R.dimen.font_size);
@@ -57,16 +83,14 @@ public class WaterfallView extends View {
         drawPaint.setAntiAlias(false);
         drawPaint.setFilterBitmap(false);
 
-        mStartTime = System.currentTimeMillis();
-
         viewport.Init(this);
     }
 
+    public void setListener(Listener l) { mCallbacks = l; }
     public void setProcessor(ProcessorMode processorMode)
     {
         mProcessorMode = processorMode;
     }
-
     public ProcessorMode getProcessor() { return mProcessorMode; }
     public void setLogX(boolean b) { mLogX = b; updateScaler(); }
     public boolean getLogX() { return mLogX; }
@@ -74,6 +98,23 @@ public class WaterfallView extends View {
     public boolean getLogY() { return mLogY; }
     public void setShowDebugInfo(boolean checked) { mShowDebugInfo = checked; }
     public boolean getShowDebugInfo() { return mShowDebugInfo; }
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public int getScaleType() { return mScaleType; }
+    public void setScaleType(int type) { mScaleType = type; }
+
+    public void clearWaterfall()
+    {
+        Spectrogram.ResetScanline();
+
+        int waterfallLines = getHeight()-mBarsHeight;
+        mSecondsPerScreen = waterfallLines / LinesPerSecond();
+        mScaleTimeAtTop = System.currentTimeMillis();
+
+        if (mBitmap!=null)
+            mBitmap.eraseColor(Color.BLACK);
+    }
+
+
     public void updateScaler()
     {
         if (mBitmap==null)
@@ -96,7 +137,7 @@ public class WaterfallView extends View {
         if (w>0 && h>0)
         {
             mBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
-            bars = new Rect(0, 0, mBitmap.getWidth(), barsHeight);
+            bars = new Rect(0, 0, mBitmap.getWidth(), mBarsHeight);
             updateScaler();
             Spectrogram.Init(mBitmap);
         }
@@ -121,7 +162,7 @@ public class WaterfallView extends View {
             x = event.getX(0);
             y = event.getY(0);
 
-            if (y<=barsHeight)
+            if (y<= mBarsHeight)
             {
                 Spectrogram.HoldData();
             }
@@ -133,10 +174,21 @@ public class WaterfallView extends View {
         return true;
     }
 
+    private void drawWaterfall(Canvas canvas, int currentRow, int barsHeight)
+    {
+        // draw waterfall
+        int topHalf = (barsHeight + 1) + mBitmap.getHeight() - currentRow;
+        canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), new Rect(0, barsHeight + 1, mBitmap.getWidth(), topHalf), null);
+        canvas.drawBitmap(mBitmap, new Rect(0, barsHeight + 1, mBitmap.getWidth(), currentRow), new Rect(0, topHalf, mBitmap.getWidth(), mBitmap.getHeight()), null);
+    }
+
+    float lerpf(float t, float a, float b) { return a + (float)(((float)(b-a))*t); }
+    long lerpu(float t, long a, long b) { return a + (long)(((float)(b-a))*t); }
+    float unlerpu(long a, long b, long t) { return (float)(((double)(t-a))/((double)(b-a))); }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     protected void onDraw(Canvas canvas) {
-        float height = (float) getHeight();
-        float width = (float) getWidth();
 
         canvas.save();
         canvas.translate(viewport.GetPos().x, 0);
@@ -147,11 +199,19 @@ public class WaterfallView extends View {
             if (currentRow >= 0) {
                 // draw bars
                 canvas.drawBitmap(mBitmap, bars, bars, drawPaint);
+                drawWaterfall(canvas, currentRow, mBarsHeight);
 
-                // draw waterfall
-                int topHalf = (barsHeight + 1) + mBitmap.getHeight() - currentRow;
-                canvas.drawBitmap(mBitmap, new Rect(0, currentRow, mBitmap.getWidth(), mBitmap.getHeight()), new Rect(0, barsHeight + 1, mBitmap.getWidth(), topHalf), null);
-                canvas.drawBitmap(mBitmap, new Rect(0, barsHeight + 1, mBitmap.getWidth(), currentRow), new Rect(0, topHalf, mBitmap.getWidth(), mBitmap.getHeight()), null);
+                if (currentRow==mBitmap.getHeight())
+                {
+                    if (mCallbacks!=null)
+                    {
+                        Bitmap bitmap = Bitmap.createBitmap(getWidth(),getHeight(), Bitmap.Config.RGB_565);
+                        Canvas canvas2 = new Canvas(bitmap);
+                        drawWaterfall(canvas2, currentRow, mBarsHeight);
+
+                        //mCallbacks.OnHitBottom(bitmap);
+                    }
+                }
             }
             Spectrogram.Unlock(mBitmap);
         }
@@ -160,10 +220,11 @@ public class WaterfallView extends View {
         {
             int dp = Spectrogram.GetDroppedFrames();
             if (dp > 0)
-                delay = 10;
+                delay = System.currentTimeMillis();
             if (delay > 0) {
                 canvas.drawText("Overload!! Dropping audio frames", 10, 250, white);
-                delay--;
+                if (System.currentTimeMillis()-delay > 500)
+                    delay = 0;
             }
         }
 
@@ -177,22 +238,85 @@ public class WaterfallView extends View {
             }
         }
 
-        if (mProcessorMode == ProcessorMode.FFT) {
-            if (mLogX) {
+        if (mProcessorMode == ProcessorMode.FFT)
+        {
+            if (mLogX)
+            {
                 DrawLogarithmicX(canvas);
-            } else {
+            }
+            else
+            {
                 DrawLinearX(canvas);
             }
-        } else if (mProcessorMode == ProcessorMode.MUSIC) {
-
-            if (mOverlay == Overlay.PIANO) {
+        }
+        else if (mProcessorMode == ProcessorMode.MUSIC)
+        {
+            if (mOverlay == Overlay.PIANO)
+            {
                 DrawPianoOverlay(canvas);
-            } else if (mOverlay == Overlay.GUITAR) {
+            }
+            else if (mOverlay == Overlay.GUITAR)
+            {
                 DrawGuitarOverlay(canvas);
             }
         }
 
-        // Draw
+        // Draw scale
+        //
+        if (mScaleType==2)
+        {
+            //int seconds = mScaleTimeAtBottom.minus(mScaleTimeAtTop).getSecond();
+            {
+                LocalDateTime ldt = Instant.ofEpochMilli(mScaleTimeAtTop).atZone(ZoneId.systemDefault()).toLocalDateTime();
+                String s = mFormatter.format(ldt);
+                canvas.drawText(s, getWidth() - 200, mBarsHeight, white);
+            }
+
+            long mScaleTimeAtBottom = mScaleTimeAtTop + (long)(mSecondsPerScreen*1000);
+
+            long rd = 2*60*1000;
+
+            for(int i=1;i<=20;i++)
+            {
+                float t = (float)i /    20.0f;
+
+                long rt = lerpu(t, RoundEpoch(mScaleTimeAtTop+rd,rd) , RoundEpoch(mScaleTimeAtBottom+rd, rd));
+
+                float rtt = unlerpu(mScaleTimeAtTop, mScaleTimeAtBottom, rt);
+                float y =  lerpf(rtt, mBarsHeight, getHeight());
+
+                String s = mFormatter.format(Instant.ofEpochMilli(rt).atZone(ZoneId.systemDefault()).toLocalDateTime());
+                canvas.drawText(s, getWidth() - 200, y, white);
+                canvas.drawLine(getWidth() - 50,y,getWidth(), y, white);
+            }
+
+        }
+        else
+        {
+            Paint.FontMetrics fm = white.getFontMetrics();
+            float fontHeight = fm.descent - fm.ascent;
+
+            float delta = LinesPerSecond();
+            float mul= (float) Math.pow(2, Math.ceil(Math.log10((fontHeight*2.0)/delta)/Math.log10(2)));
+            delta *= mul;
+
+            int tickCount = (int)((float)(getHeight()-mBarsHeight) / delta);
+            float maxtime = (float)tickCount*mul;
+
+            for(int i=1;i<=tickCount;i++)
+            {
+                float y = mBarsHeight + (float)i*delta;
+                canvas.drawLine(getWidth()-50,y,getWidth(), y, white);
+
+                if (maxtime < tickCount)
+                    canvas.drawText(String.format("%.2fs", (float) (i * mul)), getWidth() - 200, y, white);
+                else
+                    canvas.drawText(FormatTime((int) (i * mul)), getWidth() - 200, y, white);
+            }
+        }
+
+        // Draw measurements
+        //
         if (mMeasuring)
         {
             float xx = viewport.fromScreenSpace(x);
@@ -208,18 +332,17 @@ public class WaterfallView extends View {
                     str = getNoteName(freq); break;
             }
 
-            canvas.drawText(str, x, y-200, white);
-            canvas.drawLine(x,0,x, height, white);
+            canvas.drawText(str, x, y-mBarsHeight, white);
+            canvas.drawLine(x,0,x, getHeight(), white);
 
             // draw time graphs
-            float delta = (48000.0f/(Spectrogram.GetFftLength()*Spectrogram.GetOverlap()));
-            delta /= Spectrogram.GetAverageCount();
+            float delta = LinesPerSecond();
             if (delta*60<100)
             {
                 delta*=60;
             }
 
-            for(int i=0;i<60;i++)
+            for(int i=1;i<60;i++)
             {
                 float yy = y - i*delta;
                 canvas.drawLine(x-20, yy, x+20, yy, white);
@@ -230,6 +353,42 @@ public class WaterfallView extends View {
         viewport.EnforceMinimumSize();
 
         invalidate();
+    }
+
+
+    long RoundEpoch(long t, long millis)
+    {
+        return t - (t % millis);
+    }
+
+    float LinesPerSecond()
+    {
+        float delta = (48000.0f/(Spectrogram.GetFftLength()*Spectrogram.GetOverlap()));
+        delta /= Spectrogram.GetAverageCount();
+        return delta;
+    }
+
+    String FormatTime(int t)
+    {
+        int h  = (int) (t / (60 * 60));
+        int mm = (int) (t % (60 * 60));
+        int m = (int) (mm / 60);
+        int s = (int) (mm % 60);
+
+        if (h>0)
+            if (s>0)
+                return String.format("%dh%02dm%02ds",h,m,s);
+            else
+                return String.format("%dh%02dm",h,m);
+        else if (m>0)
+            if (s>0)
+                return String.format("%02dm%02ds",m,s);
+            else
+                return String.format("%02dm",m);
+        else if (s>0)
+                return String.format("%02ds",s);
+
+        return String.format("err %d",t);
     }
 
     private void DrawLogarithmicX(Canvas canvas)

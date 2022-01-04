@@ -18,6 +18,7 @@ package com.example.plasma;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.media.AudioManager;
@@ -26,6 +27,7 @@ import android.content.Context;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import android.os.Environment;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -38,13 +40,14 @@ import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
-import android.widget.SeekBar;
 import android.widget.Spinner;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 public class WaterfallApp extends AppCompatActivity
@@ -61,6 +64,9 @@ public class WaterfallApp extends AppCompatActivity
     WaterfallView mWaterfallView;
 
     View popupView;
+    CheckBox mPlayPauseCheckbox;
+
+    boolean mPauseWhenWaterfallReachesBottom = false;
 
     // Called when the activity is first created.
     @Override
@@ -77,9 +83,20 @@ public class WaterfallApp extends AppCompatActivity
 
         mWaterfallView = (WaterfallView) findViewById(R.id.WaterfallView);
 
+        mWaterfallView.setListener(new WaterfallView.Listener() {
+            @Override
+            public void OnHitBottom(Bitmap bitmap) {
+                if (mPauseWhenWaterfallReachesBottom)
+                {
+                    saveScreenshot(bitmap);
+                }
+            }
+        });
+
         // inflate settings preferences now to avoid hiccups
         LayoutInflater inflater = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         popupView = inflater.inflate(R.layout.settings_menu, null);
+
 
         // init preferences
 
@@ -93,6 +110,11 @@ public class WaterfallApp extends AppCompatActivity
             public int getValue() {
                 return (int)(Spectrogram.GetVolume() * 100);
             }
+
+            @Override
+            public String getString(int v) {
+                return "";
+            }
         });
 
         m_FFTOverlap = new SeekBarHelper(getString(R.string.fft_overlap), 50, new SeekBarHelper.Listener() {
@@ -104,6 +126,11 @@ public class WaterfallApp extends AppCompatActivity
             @Override
             public int getValue() {
                 return (int)(Spectrogram.GetOverlap() * 100);
+            }
+
+            @Override
+            public String getString(int v) {
+                return String.format("%3d %%",v);
             }
         });
 
@@ -117,6 +144,11 @@ public class WaterfallApp extends AppCompatActivity
             public int getValue() {
                 return (int)(Spectrogram.GetDecay() * 100);
             }
+
+            @Override
+            public String getString(int v) {
+                return "";
+            }
         });
 
         m_AverageCount = new SeekBarHelper(getString(R.string.set_average_count), 1, new SeekBarHelper.Listener() {
@@ -129,6 +161,11 @@ public class WaterfallApp extends AppCompatActivity
             public int getValue() {
                 return Spectrogram.GetAverageCount();
             }
+
+            @Override
+            public String getString(int v) {
+                return String.format("%3d",v);
+            }
         });
 
         m_FFTSize = new SeekBarHelper(getString(R.string.fft_size), 4 /*4096*/, new SeekBarHelper.Listener() {
@@ -140,6 +177,12 @@ public class WaterfallApp extends AppCompatActivity
             @Override
             public int getValue() {
                 return (int) (Math.log(Spectrogram.GetFftLength()) / Math.log(2)) - 8;
+            }
+
+            @Override
+            public String getString(int v) {
+                int length = (1 << (v + 8));
+                return String.format("%3d %%   %3.1f ms",v, (1000.0f * length)/48000.0f);
             }
         });
 
@@ -173,10 +216,10 @@ public class WaterfallApp extends AppCompatActivity
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.toolbar_options_menu, menu);
         final MenuItem logItem = menu.findItem(R.id.play_pause2);
-        CheckBox cb = (CheckBox)logItem.getActionView().findViewById(R.id.action_layout_styled_checkbox);
-        if (cb != null)
+        CheckBox playPauseCheckbox = (CheckBox)logItem.getActionView().findViewById(R.id.action_layout_styled_checkbox);
+        if (playPauseCheckbox != null)
         {
-            cb.setOnClickListener(new View.OnClickListener() {
+            playPauseCheckbox.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     Audio.pausePlay();
@@ -204,80 +247,126 @@ public class WaterfallApp extends AppCompatActivity
         }
     }
 
+    private void saveScreenshot(Bitmap bitmap)
+    {
+        String fileName = new SimpleDateFormat("yyyyMMdd_HHmm'.txt'").format(new Date());
+
+        String mPath = Environment.getExternalStorageDirectory().toString() + "/Spec_" + fileName + ".png";
+        File imageFile = new File(mPath);
+
+        try {
+            FileOutputStream outputStream = new FileOutputStream(imageFile);
+            int quality = 100;
+            bitmap.compress(Bitmap.CompressFormat.PNG, quality, outputStream);
+            outputStream.flush();
+            outputStream.close();
+        } catch (Throwable e) {
+            // Several error may come out with file handling or DOM
+            e.printStackTrace();
+        }
+    }
+
     public void ShowSettingsDialog() {
 
         //-------------------------------- sliders
-        m_Volume.Init(popupView, R.id.volume);
-        m_FFTOverlap.Init(popupView, R.id.fft_overlap);
-        m_BarsDecay.Init(popupView, R.id.bars_decay);
+        m_Volume.Init(popupView, R.id.volume, R.id.textVolumeText);
+        m_FFTOverlap.Init(popupView, R.id.fft_overlap, R.id.fftOverlapText);
+        m_BarsDecay.Init(popupView, R.id.bars_decay, R.id.barsDecayText);
 
         if (mWaterfallView.getProcessor()==WaterfallView.ProcessorMode.FFT) {
-            m_AverageCount.Init(popupView, R.id.average_count);
-            m_FFTSize.Init(popupView, R.id.fft_size);
+            m_AverageCount.Init(popupView, R.id.average_count, R.id.averageCountText);
+            m_FFTSize.Init(popupView, R.id.fft_size, R.id.fftSizeText);
         }
 
         //--------------------------------  axis radio buttons
         if (mWaterfallView.getProcessor()==WaterfallView.ProcessorMode.FFT)
         {
-            String[] plants = new String[]{
-                    "Log",
-                    "Linear"
-            };
+            {
+                String[] plants = new String[]{
+                        "Log",
+                        "Linear"
+                };
 
-            final List<String> plantsList = new ArrayList<>(Arrays.asList(plants));
+                final List<String> plantsList = new ArrayList<>(Arrays.asList(plants));
 
-            // Initializing an ArrayAdapter
-            final ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<String>(this,R.layout.spinner_item,plantsList);
-            spinnerArrayAdapter.setDropDownViewResource(R.layout.spinner_item);
+                // Initializing an ArrayAdapter
+                final ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<String>(this, R.layout.spinner_item, plantsList);
+                spinnerArrayAdapter.setDropDownViewResource(R.layout.spinner_item);
 
-            AdapterView.OnItemSelectedListener ItemSelectedListener = new AdapterView.OnItemSelectedListener() {
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id)
-                {
-                    switch (parent.getId())
-                    {
-                        case R.id.x_axis:
-                            if (position==0)
-                            {
-                                mWaterfallView.setLogX(true);
-                            }
-                            else
-                            {
-                                mWaterfallView.setLogX(false);
-                            }
-                            break;
-                        case R.id.y_axis:
-                            if (position==0)
-                            {
-                                mWaterfallView.setLogY(true);
-                            }
-                            else
-                            {
-                                mWaterfallView.setLogY(false);
-                            }
-                            break;
+                AdapterView.OnItemSelectedListener ItemSelectedListener = new AdapterView.OnItemSelectedListener() {
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        switch (parent.getId()) {
+                            case R.id.x_axis:
+                                if (position == 0) {
+                                    mWaterfallView.setLogX(true);
+                                } else {
+                                    mWaterfallView.setLogX(false);
+                                }
+                                break;
+                            case R.id.y_axis:
+                                if (position == 0) {
+                                    mWaterfallView.setLogY(true);
+                                } else {
+                                    mWaterfallView.setLogY(false);
+                                }
+                                break;
+                        }
                     }
-                }
-                public void onNothingSelected(AdapterView<?> parent)
-                {
 
-                }
-            };
+                    public void onNothingSelected(AdapterView<?> parent) {
 
-            Spinner spinnerX = (Spinner) popupView.findViewById(R.id.x_axis);
-            spinnerX.setAdapter(spinnerArrayAdapter);
-            spinnerX.setOnItemSelectedListener(ItemSelectedListener);
-            spinnerX.setSelection(mWaterfallView.getLogX()?0:1);
+                    }
+                };
 
-            Spinner spinnerY = (Spinner) popupView.findViewById(R.id.y_axis);
-            spinnerY.setAdapter(spinnerArrayAdapter);
-            spinnerY.setOnItemSelectedListener(ItemSelectedListener);
-            spinnerY.setSelection(mWaterfallView.getLogY()?0:1);
+                Spinner spinnerX = (Spinner) popupView.findViewById(R.id.x_axis);
+                spinnerX.setAdapter(spinnerArrayAdapter);
+                spinnerX.setOnItemSelectedListener(ItemSelectedListener);
+                spinnerX.setSelection(mWaterfallView.getLogX() ? 0 : 1);
+
+                Spinner spinnerY = (Spinner) popupView.findViewById(R.id.y_axis);
+                spinnerY.setAdapter(spinnerArrayAdapter);
+                spinnerY.setOnItemSelectedListener(ItemSelectedListener);
+                spinnerY.setSelection(mWaterfallView.getLogY() ? 0 : 1);
+            }
 
             popupView.findViewById(R.id.FFT_stuff).setVisibility( View.VISIBLE);
         }
         else
         {
             popupView.findViewById(R.id.FFT_stuff).setVisibility( View.GONE);
+        }
+
+
+        {
+            String[] plants = new String[]{
+                    "None",
+                    "Time",
+                    "Timestamp"
+            };
+
+            final List<String> plantsList = new ArrayList<>(Arrays.asList(plants));
+
+            // Initializing an ArrayAdapter
+            final ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<String>(this, R.layout.spinner_item, plantsList);
+            spinnerArrayAdapter.setDropDownViewResource(R.layout.spinner_item);
+
+            AdapterView.OnItemSelectedListener ItemSelectedListener = new AdapterView.OnItemSelectedListener() {
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    switch (parent.getId()) {
+                        case R.id.time_scale_type:
+                            mWaterfallView.setScaleType(position);
+                            mWaterfallView.clearWaterfall();
+                            break;
+                    }
+                }
+
+                public void onNothingSelected(AdapterView<?> parent) {
+                }
+            };
+            Spinner spinnerX = (Spinner) popupView.findViewById(R.id.time_scale_type);
+            spinnerX.setSelection(mWaterfallView.getScaleType());
+            spinnerX.setAdapter(spinnerArrayAdapter);
+            spinnerX.setOnItemSelectedListener(ItemSelectedListener);
         }
 
         //--------------------------------  check buttons
@@ -287,12 +376,18 @@ public class WaterfallApp extends AppCompatActivity
                 boolean checked = ((CheckBox) view).isChecked();
                 switch (view.getId()) {
                     case R.id.debug: mWaterfallView.setShowDebugInfo(checked); break;
+                    case R.id.pauseWhenWaterfallReachesBottom: mPauseWhenWaterfallReachesBottom = checked; break;
                 }
             }
         };
 
         CheckBox debug = popupView.findViewById(R.id.debug);
+        debug.setChecked(mWaterfallView.getShowDebugInfo());
         debug.setOnClickListener(CheckBoxListener);
+
+        CheckBox pauseWhenWaterfallReachesBottom = popupView.findViewById(R.id.pauseWhenWaterfallReachesBottom);
+        pauseWhenWaterfallReachesBottom.setChecked(mPauseWhenWaterfallReachesBottom);
+        pauseWhenWaterfallReachesBottom.setOnClickListener(CheckBoxListener);
 
         //--------------------------------
         int width = LinearLayout.LayoutParams.MATCH_PARENT;
@@ -327,6 +422,9 @@ public class WaterfallApp extends AppCompatActivity
         }
 
         mWaterfallView.setShowDebugInfo(sharedPref.getBoolean(getString(R.string.showDebugInfo), false));
+        mWaterfallView.setScaleType((sharedPref.getInt(getString(R.string.time_scale_type), 0)));
+        mPauseWhenWaterfallReachesBottom = sharedPref.getBoolean(getString(R.string.pause_when_waterfall_reaches_the_bottom), false);
+
         Spectrogram.SetBarsHeight(200);
     }
 
@@ -348,6 +446,8 @@ public class WaterfallApp extends AppCompatActivity
         }
 
         editor.putBoolean(getString(R.string.showDebugInfo), mWaterfallView.getShowDebugInfo());
+        editor.putInt(getString(R.string.time_scale_type), mWaterfallView.getScaleType());
+        editor.putBoolean(getString(R.string.pause_when_waterfall_reaches_the_bottom), mPauseWhenWaterfallReachesBottom);
 
         editor.apply();
         editor.commit();

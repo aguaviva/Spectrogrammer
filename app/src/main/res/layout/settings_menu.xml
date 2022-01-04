@@ -8,6 +8,7 @@
     android:padding="@dimen/font_size">
 
     <TextView
+        android:id="@+id/textVolumeText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
@@ -26,7 +27,7 @@
         android:max="100" />
 
     <TextView
-        android:id="@+id/textOverlap"
+        android:id="@+id/fftOverlapText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/fft_overlap" />
@@ -38,6 +39,7 @@
         android:max="100" />
 
     <TextView
+        android:id="@+id/barsDecayText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/bars_decay" />
@@ -49,6 +51,7 @@
         android:max="100" />
 
     <TextView
+        android:id="@+id/averageCountText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/set_average_count" />
@@ -61,6 +64,7 @@
         android:max="100" />
 
     <TextView
+        android:id="@+id/fftSizeText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/fft_size" />
@@ -108,11 +112,35 @@
 
     </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation='horizontal'>
+        <TextView
+            android:padding="10dp"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="@string/time_scale_type" />
+
+        <Spinner
+            android:id="@+id/time_scale_type"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
     <CheckBox
         android:id="@+id/debug"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="show debug data" />
+        android:text="@string/show_debug_data" />
 
+
+
+    <CheckBox
+        android:id="@+id/pauseWhenWaterfallReachesBottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/pause_when_waterfall_reaches_the_bottom"
+        android:visibility="invisible" />
 
 </LinearLayout>

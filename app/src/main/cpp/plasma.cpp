@@ -227,6 +227,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetProcess
     else
         pProcessorDeferred = pGoertzel;
 }
+
 extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetFftLength(JNIEnv * env, jclass obj)
 {
     return pProcessor->getProcessedLength();
@@ -308,6 +309,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ClearHeldD
     m_pHoldedData = nullptr;
     pthread_mutex_unlock(&context.scaleLock);
 }
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ResetScanline(JNIEnv * env, jclass obj)
+{
+    pthread_mutex_lock(&context.scaleLock);
+    waterFallRaw = context.info.height;
+    pthread_mutex_unlock(&context.scaleLock);
+}
+
 
 /////////////////////////////////////////////////// Perf counter ///////////////////////////////////////////////////////
 

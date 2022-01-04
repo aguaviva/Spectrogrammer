@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)!= PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{RECORD_AUDIO}, PERMISSION_REQUEST_CODE);
         }
-
+    /*
         try {
             Class.forName("dalvik.system.CloseGuard")
                     .getMethod("setEnabled", boolean.class)
@@ -33,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
+        */
 
         View.OnClickListener buttonListener = new View.OnClickListener() {
             public void onClick(View v) {
