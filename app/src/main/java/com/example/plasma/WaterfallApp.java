@@ -183,7 +183,7 @@ public class WaterfallApp extends AppCompatActivity
             @Override
             public String getString(int v) {
                 int length = (1 << (v + 8));
-                return String.format("%3d %%   %3.1f ms",length, (1000.0f * length)/48000.0f);
+                return String.format("%3d bins,   %3.1f ms",length, (1000.0f * length)/48000.0f);
             }
         });
 
