@@ -1,5 +1,9 @@
 # Spectrogrammer
 Android app that shows a spectrogram
+
+>Disclaimer:
+>
+>The code for this project is just an experiment doesn't follow best practices.
     
 ## Features
  - Low latency audio processing, uses
@@ -25,3 +29,6 @@ This is me singing from the lowest note I can perform to the highest. I did this
 And the final Q/A test, displaying Lena(https://www.youtube.com/watch?v=S64FROErFYA), or half of it as YouTube downsampled the sound to 22Khz.
 
 <img src="lena-2021-05-02-175125.png" width="200"/>
+
+
+
