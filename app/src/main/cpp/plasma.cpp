@@ -124,7 +124,7 @@ void ProcessChunk()
             waterFallRaw -= 1;
             if (waterFallRaw < barsHeight)
             {
-                waterFallRaw = context.info.height;
+                waterFallRaw = context.info.height - 1;
             }
 
             // draw line
