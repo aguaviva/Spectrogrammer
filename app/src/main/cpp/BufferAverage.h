@@ -29,8 +29,25 @@ public:
         return m_averageCount;
     }
 
+    void reset()
+    {
+        bufferIO.clear();
+        m_i = 0;
+    }
+
+    int getProgress()
+    {
+        return (m_i*100)/m_averageCount;
+    }
+
     BufferIODouble *Do(BufferIODouble *pIn)
     {
+        if (pIn->GetSize()!=bufferIO.GetSize())
+        {
+            bufferIO.Resize(pIn->GetSize());
+            reset();
+        }
+
         if (m_averageCount<=1)
             return pIn;
 

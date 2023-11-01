@@ -41,13 +41,8 @@ ChunkerProcessor chunker;
 BufferAverage bufferAverage;
 
 float sampleRate = 48000.0f;
-float timeOverlap = .5f; //in seconds
-float decay = .5f; //in seconds
 
 void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ);
-
-int barsHeight = 500;
-int waterFallRaw = barsHeight;
 
 static double now_ms(void)
 {
@@ -58,6 +53,15 @@ static double now_ms(void)
 
 #include <pthread.h>
 #include <semaphore.h>
+
+struct PerfCounters
+{
+    // perf counters
+    uint32_t recordedChunks = 0;
+    uint32_t processedChunks = 0;
+    uint32_t droppedBuffers = 0;
+    uint32_t iterationsPerChunk = 0;
+};
 
 struct Context
 {
@@ -72,16 +76,19 @@ struct Context
 
     float volume = 1;
 
-    // perf counters
-    int recordedChunks = 0;
-    int processedChunks = 0;
-    int droppedBuffers = 0;
-    int iterationsPerChunk = 0;
+    PerfCounters perfCounters;
+
     double millisecondsWaitingInLoopSemaphore = 0;
     double millisecondsProcessingChunk        = 0;
 
     AudioQueue* pFreeQueue = nullptr;       // user
     AudioQueue* pRecQueue = nullptr;        // user
+
+    float fractionOverlap = .5f; // 0 to 1
+    float decay = .5f;
+    int barsHeight = 500;
+    int waterFallRaw = barsHeight;
+
 
     bool redoScale = false;
 };
@@ -95,51 +102,52 @@ void ProcessChunk()
     // pass available buffers to processor
     {
         sample_buf *buf = nullptr;
-        while (context.pRecQueue->front(&buf)) {
+        while (context.pRecQueue->front(&buf))
+        {
             context.pRecQueue->pop();
-            if (chunker.pushAudioChunk(buf) == false) {
-                context.droppedBuffers++;
+            if (chunker.pushAudioChunk(buf) == false)
+            {
+                context.perfCounters.droppedBuffers++;
             }
         }
     }
 
     //if we have enough data queued process the fft
-    while (chunker.Process(pProcessor, decay, timeOverlap))
+    while (chunker.Process(pProcessor, context.decay, context.fractionOverlap))
     {
         BufferIODouble *bufferIO = pProcessor->getBufferIO();
 
         bufferIO = bufferAverage.Do(bufferIO);
-        if (bufferIO==nullptr)
-            break;
-
-        context.processedChunks++;
-
-        if (pScale)
+        if (bufferIO!=nullptr)
         {
-            pthread_mutex_lock(&context.scaleLock);
+            context.perfCounters.processedChunks++;
 
-            pScale->Build(bufferIO, context.volume);
+            if (pScale) {
+                pthread_mutex_lock(&context.scaleLock);
+                //LOGE("Begin DrawLine");
 
-            // advance waterfall
-            waterFallRaw -= 1;
-            if (waterFallRaw < barsHeight)
-            {
-                waterFallRaw = context.info.height;
+                pScale->Build(bufferIO, context.volume);
+
+                // advance waterfall
+                context.waterFallRaw -= 1;
+                if (context.waterFallRaw < context.barsHeight) {
+                    context.waterFallRaw = context.info.height-1;
+                }
+
+                // draw line
+                if (context.pixels != nullptr) {
+                    drawWaterFallLine(&context.info, context.waterFallRaw, context.pixels, pScale->GetBuffer());
+                }
+
+                //LOGE("End   DrawLine");
+                pthread_mutex_unlock(&context.scaleLock);
             }
-
-            // draw line
-            if (context.pixels != nullptr)
-            {
-                drawWaterFallLine(&context.info, waterFallRaw, context.pixels, pScale->GetBuffer());
-            }
-
-            pthread_mutex_unlock(&context.scaleLock);
         }
 
         iterationsPerChunk++;
     }
 
-    context.iterationsPerChunk = iterationsPerChunk;
+    context.perfCounters.iterationsPerChunk = iterationsPerChunk;
 
     // return processed buffers
     {
@@ -169,23 +177,21 @@ void *loop( void *init)
 {
     LOGE("loop()");
 
-    double oldTime = now_ms();
-
     for(;;)
     {
         // wait for buffer
+        double sem_start = now_ms();
         sem_wait(&context.headwriteprotect);
+        double sem_stop = now_ms();
         if (context.exit)
             break;
 
-        double waitTime = now_ms();
+        double chunk_start = now_ms();
         ProcessChunk();
-        double currTime = now_ms();
+        double chunk_stop = now_ms();
 
-        context.millisecondsWaitingInLoopSemaphore = waitTime - oldTime;
-        context.millisecondsProcessingChunk        = currTime - waitTime;
-
-        oldTime = currTime;
+        context.millisecondsWaitingInLoopSemaphore = sem_stop - sem_start;
+        context.millisecondsProcessingChunk        = chunk_stop - chunk_start;
     }
 
     return nullptr;
@@ -238,30 +244,31 @@ extern "C" JNIEXPORT jint JNICALL Java_com_example_plasma_Spectrogram_GetFftLeng
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetBarsHeight(JNIEnv * env, jclass obj, jint  barsHeight_)
 {
-    barsHeight = barsHeight_;
-    waterFallRaw = barsHeight_;
+    context.barsHeight = barsHeight_;
+    context.waterFallRaw = barsHeight_;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetOverlap(JNIEnv * env, jclass obj, jfloat timeOverlap_)
 {
-    if (timeOverlap_<0.02f)
-        timeOverlap_ = 0.02f;
-    timeOverlap = timeOverlap_;
+    if (timeOverlap_>0.98f)
+        timeOverlap_ = 0.98f;
+
+    context.fractionOverlap = timeOverlap_;
 }
 
 extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetOverlap(JNIEnv * env, jclass obj)
 {
-    return timeOverlap;
+    return context.fractionOverlap;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetDecay(JNIEnv * env, jclass obj, jfloat decay_)
 {
-    decay = decay_;
+    context.decay = decay_;
 }
 
 extern "C" JNIEXPORT jfloat JNICALL Java_com_example_plasma_Spectrogram_GetDecay(JNIEnv * env, jclass obj)
 {
-    return decay;
+    return context.decay;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetVolume(JNIEnv * env, jclass obj, jfloat volume_)
@@ -313,26 +320,29 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ClearHeldD
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ResetScanline(JNIEnv * env, jclass obj)
 {
     pthread_mutex_lock(&context.scaleLock);
-    waterFallRaw = context.info.height;
+    context.waterFallRaw = context.info.height;
     pthread_mutex_unlock(&context.scaleLock);
 }
-
 
 /////////////////////////////////////////////////// Perf counter ///////////////////////////////////////////////////////
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_SetScaler(JNIEnv * env, jclass obj, int screenWidth, double minFreq, double maxFreq, jboolean bLogX, jboolean bLogY)
 {
     pthread_mutex_lock(&context.scaleLock);
+    LOGE("Begin SetScaler");
+
     delete(pScale);
     pScale = GetScale(bLogX, bLogY);
     pScale->setOutputWidth(screenWidth, minFreq, maxFreq);
     pScale->PreBuild(pProcessor);
+
+    LOGE("End   SetScaler");
     pthread_mutex_unlock(&context.scaleLock);
 }
 
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetIterationsPerChunk(JNIEnv * env, jclass obj)
 {
-    return context.iterationsPerChunk;
+    return context.perfCounters.iterationsPerChunk;
 }
 
 extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Spectrogram_GetMillisecondsPerChunk(JNIEnv * env, jclass obj)
@@ -343,17 +353,22 @@ extern "C" JNIEXPORT double JNICALL Java_com_example_plasma_Spectrogram_GetMilli
 extern "C" JNIEXPORT jstring JNICALL Java_com_example_plasma_Spectrogram_GetDebugInfo(JNIEnv * env, jclass obj)
 {
     char sout[1024];
+    char *pOut = sout;
+    static double last_time = now_ms();
 
-    sprintf(sout, "recordedChunks %i\nprocessedChunks %i\ndroppedBuffers %i\nrecordedBufSize %i\nfreeBufSize %i\niterations Per Chunk %i\ndroppedBuffers %i\nTime WaitingInLoopSemaphore %.1f ms\nTime ProcessingChunk %.2fms\n",
-    context.recordedChunks,
-    context.processedChunks,
-    context.droppedBuffers,
-    (context.pRecQueue!=nullptr)?context.pRecQueue->size():0,
-    (context.pFreeQueue!=nullptr)?context.pFreeQueue->size():0,
-    context.iterationsPerChunk,
-    context.droppedBuffers,
-    context.millisecondsWaitingInLoopSemaphore,
-    context.millisecondsProcessingChunk);
+    PerfCounters *pC = &context.perfCounters;
+    pOut += sprintf(pOut,"Buffers:\n");
+    pOut += sprintf(pOut," - Recorded %i\n", pC->recordedChunks);
+    pOut += sprintf(pOut," - Dropped %i\n", pC->droppedBuffers);
+    pOut += sprintf(pOut,"FFTs %i\n", pC->processedChunks);
+    pOut += sprintf(pOut,"iterations Per Chunk %i\n", pC->iterationsPerChunk);
+    pOut += sprintf(pOut,"Queue sizes:\n");
+    pOut += sprintf(pOut,"- Recorded %i\n",(context.pRecQueue!=nullptr)?context.pRecQueue->size():0);
+    pOut += sprintf(pOut,"- Free %i\n",(context.pFreeQueue!=nullptr)?context.pFreeQueue->size():0);
+    pOut += sprintf(pOut,"Timings:\n");
+    pOut += sprintf(pOut," - Waiting for audio %.1f ms\n", context.millisecondsWaitingInLoopSemaphore);
+    pOut += sprintf(pOut," - Processing chunk %.2fms\n", context.millisecondsProcessingChunk);
+    pOut += sprintf(pOut,"Progress: %i %%\n", bufferAverage.getProgress());
 
     return env->NewStringUTF(sout);
 }
@@ -362,7 +377,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_example_plasma_Spectrogram_GetDebu
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_GetDroppedFrames(JNIEnv * env, jclass obj)
 {
     static int lastDroppedFrames = 0;
-    int dp = context.droppedBuffers;
+    int dp = context.perfCounters.droppedBuffers;
     int res = dp - lastDroppedFrames;
     lastDroppedFrames = dp;
     return res;
@@ -379,7 +394,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_ConnectWit
     {
         assert(msg==ENGINE_SERVICE_MSG_RECORDED_AUDIO_AVAILABLE);
 
-        context.recordedChunks++;
+        context.perfCounters.recordedChunks++;
         GetBufferQueues(&sampleRate, &context.pFreeQueue, &context.pRecQueue);
         sem_post(&context.headwriteprotect);
         return true;
@@ -441,32 +456,35 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Init(JNIEn
 extern "C" JNIEXPORT int JNICALL Java_com_example_plasma_Spectrogram_Lock(JNIEnv * env, jclass  obj, jobject bitmap)
 {
     pthread_mutex_lock(&context.scaleLock);
+//    LOGE("Begin Lock");
 
     if (pScale!=nullptr) {
-        drawSpectrumBars(&context.info, context.pixels, barsHeight, pScale->GetBuffer());
+        drawSpectrumBars(&context.info, context.pixels, context.barsHeight, pScale->GetBuffer());
 
         if (m_pHoldedData != nullptr) {
-            drawHeldData(&context.info, context.pixels, barsHeight, m_pHoldedData);
+            drawHeldData(&context.info, context.pixels, context.barsHeight, m_pHoldedData);
         }
     }
 
     AndroidBitmap_unlockPixels(env, bitmap);
+//    LOGE("End   Lock");
 
-    return waterFallRaw;
+    return context.waterFallRaw;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_example_plasma_Spectrogram_Unlock(JNIEnv * env, jclass  obj, jobject bitmap)
 {
+//    LOGE("Begin Unlock");
     int ret;
     if ((ret = AndroidBitmap_getInfo(env, bitmap, &context.info)) < 0) {
         LOGE("AndroidBitmap_getInfo() failed ! error=%d", ret);
-        return;
     }
 
     if ((ret = AndroidBitmap_lockPixels(env, bitmap, &context.pixels)) < 0) {
         LOGE("AndroidBitmap_lockPixels() failed ! error=%d", ret);
     }
 
+//    LOGE("End   Unlock");
     pthread_mutex_unlock(&context.scaleLock);
 }
 

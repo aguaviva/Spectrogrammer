@@ -115,12 +115,12 @@ bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
     return false;
 }
 
-bool ChunkerProcessor::Process(Processor *pSpectrum, double decay, double timeOverlap)
+bool ChunkerProcessor::Process(Processor *pSpectrum, double decay, double fractionOverlap)
 {
     if (PrepareBuffer(pSpectrum))
     {
         pSpectrum->computePower(decay);
-        m_offset += pSpectrum->getProcessedLength() * timeOverlap;
+        m_offset += pSpectrum->getProcessedLength() * (1.0f - fractionOverlap);
         return true;
     }
 

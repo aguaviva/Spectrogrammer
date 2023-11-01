@@ -28,5 +28,5 @@ public:
     bool pushAudioChunk(sample_buf *buf);
     bool getFreeBufferFrontAndPop(sample_buf **buf);
     bool releaseUsedAudioChunks();
-    bool Process(Processor *pSpectrum, double decay, double timeOverlap);
+    bool Process(Processor *pSpectrum, double decay, double fractionOverlap);
 };
