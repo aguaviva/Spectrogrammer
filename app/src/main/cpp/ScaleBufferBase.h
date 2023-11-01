@@ -15,7 +15,10 @@ public:
     BufferIODouble *m_pOutput = nullptr;
 
 public:
-    virtual ~ScaleBufferBase() {};
+    virtual ~ScaleBufferBase()
+    {
+        delete(m_pOutput);
+    };
     virtual void setOutputWidth(int outputWidth, float minFreq, float maxFreq) = 0;
     virtual float XtoFreq(float x) const = 0;
     virtual float FreqToX(float freq) const = 0;
@@ -26,7 +29,6 @@ public:
     {
         return m_pOutput;
     }
-
 
     float *GetData() const
     {

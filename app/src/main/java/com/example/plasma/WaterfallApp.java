@@ -120,17 +120,17 @@ public class WaterfallApp extends AppCompatActivity
         m_FFTOverlap = new SeekBarHelper(getString(R.string.fft_overlap), 50, new SeekBarHelper.Listener() {
             @Override
             public void setValue(int v) {
-                Spectrogram.SetOverlap((float) v / 100.0f);
+                Spectrogram.SetOverlap((float) (v) / 100.0f);
             }
 
             @Override
             public int getValue() {
-                return (int)(Spectrogram.GetOverlap() * 100);
+                return (int)((Spectrogram.GetOverlap()) * 100);
             }
 
             @Override
             public String getString(int v) {
-                return String.format("%3d %%",v);
+                return String.format("%3d %%", v);
             }
         });
 
@@ -146,8 +146,9 @@ public class WaterfallApp extends AppCompatActivity
             }
 
             @Override
-            public String getString(int v) {
-                return "";
+            public String getString(int v)
+            {
+                return String.format("%.2f", Spectrogram.GetDecay());
             }
         });
 
@@ -182,7 +183,7 @@ public class WaterfallApp extends AppCompatActivity
             @Override
             public String getString(int v) {
                 int length = (1 << (v + 8));
-                return String.format("%3d %%   %3.1f ms",v, (1000.0f * length)/48000.0f);
+                return String.format("%3d bins,   %3.1f ms",length, (1000.0f * length)/48000.0f);
             }
         });
 

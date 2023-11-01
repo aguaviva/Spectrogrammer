@@ -19,7 +19,6 @@ class ScaleBuffer : public ScaleBufferBase
 public:
     ~ScaleBuffer()
     {
-        delete(m_pOutput);
         delete(m_pBins);
     }
 

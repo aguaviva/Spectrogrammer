@@ -28,13 +28,17 @@ void drawWaterFallLine(const AndroidBitmapInfo*  info, int yy, void*  pixels, Bu
     uint32_t x = 0;
 
     float *pData = pBuffer->GetData();
+    uint32_t data_size = pBuffer->GetSize();
 
-    if ((pData!=nullptr) && (line < line_end))
+    if (pData==NULL)
+        return;
+
+    if (line < line_end)
     {
         if (((uint32_t)(uintptr_t)line & 3) != 0)
         {
-            assert(x<info->width);
-            line[0] = GetColor(pData[x++]);
+            assert(x<data_size);
+            *line = GetColor(pData[x++]);
             line++;
         }
 
@@ -42,21 +46,21 @@ void drawWaterFallLine(const AndroidBitmapInfo*  info, int yy, void*  pixels, Bu
         {
             uint32_t  pixel;
 
-            assert(x<info->width);
+            assert(x<data_size);
             pixel = (uint32_t)GetColor(pData[x++]);
             pixel <<=16;
 
-            assert(x<info->width);
+            assert(x<data_size);
             pixel |= (uint32_t)GetColor(pData[x++]);
 
-            ((uint32_t*)line)[0] = pixel;
+            *((uint32_t*)line) = pixel;
             line += 2;
         }
 
         if (line < line_end)
         {
-            assert(x<info->width);
-            line[0] = GetColor(pData[x++]);
+            assert(x<data_size);
+            *line = GetColor(pData[x++]);
             line++;
         }
     }

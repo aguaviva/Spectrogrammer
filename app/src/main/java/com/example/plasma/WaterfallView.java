@@ -26,6 +26,8 @@ import java.util.Date;
 
 import androidx.annotation.RequiresApi;
 
+import static java.lang.Math.ceil;
+
 public class WaterfallView extends View {
 
     interface Listener
@@ -53,10 +55,12 @@ public class WaterfallView extends View {
     private boolean mLogX = false;
     private boolean mLogY = true;
     private boolean mShowDebugInfo = false;
+    private float m_seconds_per_tick = 0;
+    private float m_old_lines_per_second = -1;
 
     private DateTimeFormatter mFormatter = null;
     private long mScaleTimeAtTop = 0;
-    private float  mSecondsPerScreen = 0;
+    private float mSecondsPerScreen = 0;
 
     private int mScaleType = 0;
     private ProcessorMode mProcessorMode = ProcessorMode.NONE;
@@ -293,25 +297,58 @@ public class WaterfallView extends View {
         }
         else
         {
+
             Paint.FontMetrics fm = white.getFontMetrics();
             float fontHeight = fm.descent - fm.ascent;
 
-            float delta = LinesPerSecond();
-            float mul= (float) Math.pow(2, Math.ceil(Math.log10((fontHeight*2.0)/delta)/Math.log10(2)));
-            delta *= mul;
+            int lines_per_page = getHeight() - mBarsHeight;
+            float lines_per_second = LinesPerSecond();
 
-            int tickCount = (int)((float)(getHeight()-mBarsHeight) / delta);
-            float maxtime = (float)tickCount*mul;
+            if (lines_per_second!=m_old_lines_per_second) {
+                m_old_lines_per_second = lines_per_second;
 
-            for(int i=1;i<=tickCount;i++)
+                float seconds_per_page = lines_per_page / lines_per_second;
+
+                float lines_per_tick = (fontHeight * 2);
+                float seconds_per_tick = lines_per_tick / lines_per_second;
+                float ticks_per_page = lines_per_page / lines_per_tick;
+                float desired_ticks_per_page = lines_per_page / lines_per_tick;
+
+                // round seconds per tick
+
+                float[] anchors = {0.001f, 0.005f, 0.01f, 0.05f, 0.1f, 0.5f, 1.0f, 5.0f, 10.0f, 15.0f, 30.0f, 60.0f, 5 * 60.0f, 10 * 60.0f, 20 * 60.0f, 30 * 60.0f, 60 * 60.0f};
+
+                int min_err = 10000;
+                for (int i = 0; i < anchors.length; i++) {
+                    float t = 0;
+                    float a = anchors[i];
+                    if (a < 1)
+                        t = Math.round(seconds_per_tick * (a * 100)) / (a * 100);
+                    else
+                        t = Math.round(seconds_per_tick * a) / a;
+                    if (t > 0) {
+                        int ticks = (int) Math.ceil(seconds_per_page / a);
+                        int err = (int) Math.abs(desired_ticks_per_page - ticks);
+                        if (err < min_err) {
+                            min_err = err;
+                            m_seconds_per_tick = a;
+                        }
+                    }
+                }
+            }
+
+            float lines_per_tick = m_seconds_per_tick * lines_per_second;
+
+            float t = 0;
+            for(int i = mBarsHeight+(int)lines_per_tick; i<=(int)getHeight(); i+=lines_per_tick)
             {
-                float y = mBarsHeight + (float)i*delta;
+                float y = i;
                 canvas.drawLine(getWidth()-50,y,getWidth(), y, white);
-
-                if (maxtime < tickCount)
-                    canvas.drawText(String.format("%.2fs", (float) (i * mul)), getWidth() - 200, y, white);
+                t += m_seconds_per_tick;
+                if (t < 1)
+                    canvas.drawText(String.format("%.2fs", t), getWidth() - 200, y, white);
                 else
-                    canvas.drawText(FormatTime((int) (i * mul)), getWidth() - 200, y, white);
+                    canvas.drawText(FormatTime((int)t), getWidth() - 200, y, white);
             }
         }
 
@@ -332,8 +369,8 @@ public class WaterfallView extends View {
                     str = getNoteName(freq); break;
             }
 
-            canvas.drawText(str, x, y-mBarsHeight, white);
-            canvas.drawLine(x,0,x, getHeight(), white);
+            canvas.drawText(str, x, y - mBarsHeight, white);
+            canvas.drawLine(x,0, x, getHeight(), white);
 
             // draw time graphs
             float delta = LinesPerSecond();
@@ -363,7 +400,7 @@ public class WaterfallView extends View {
 
     float LinesPerSecond()
     {
-        float delta = (48000.0f/(Spectrogram.GetFftLength()*Spectrogram.GetOverlap()));
+        float delta = (48000.0f/(Spectrogram.GetFftLength()* (1.0f - Spectrogram.GetOverlap())));
         delta /= Spectrogram.GetAverageCount();
         return delta;
     }
