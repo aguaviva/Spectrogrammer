@@ -1,36 +1,28 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.plasma"
-    android:versionCode="1"
-    android:versionName="1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"
+    package="com.spectrogrammer.tool"
+		  
+	android:versionCode="15"
+    android:versionName="1.5">
+	
+	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30" />
+	
+	<uses-permission android:name="android.permission.SET_RELEASE_APP"/>
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
-    <application
-        android:allowBackup="false"
-        android:fullBackupContent="false"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-        <activity android:name=".MainActivity">
+
+    <application android:label="Spectrogrammer" android:debuggable="true" android:hasCode="false" tools:replace="android:icon,android:theme,android:allowBackup,label" android:icon="@mipmap/icon">
+        <activity android:name="android.app.NativeActivity"
+                  android:label="Spectrogrammer"
+				  android:screenOrientation="portrait"
+                  android:configChanges="orientation|keyboardHidden">
+            <meta-data android:name="android.app.lib_name"
+                       android:value="spectrogrammer" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".WaterfallApp"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:label="@string/app_name"
-            android:parentActivityName=".MainActivity">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".MainActivity" />
-
-        </activity>
     </application>
-
 </manifest>

@@ -1,34 +1,34 @@
 # Spectrogrammer
-Android app that shows a spectrogram
 
->Disclaimer:
->
->The code for this project is just an experiment doesn't follow best practices.
-    
+Android app that computes a spectrogram
+
 ## Features
- - Low latency audio processing, uses
-     - Multithreaded native code
-     - OpenSL
- - Spectrum types:
-   - FFT, for scientific purposes
-     - Up to 8192 frequency bins
-     - Log/Linear scales
-   - Goertzel bank filter, centered at notes frequencies, for tuning instruments      
- - Configurable FFT overlap
- - Vertical bars smoothing 
- - Pan & Zoom
- - Measuring cursor 
- 
-
-## Screenshots
-
-This is me singing from the lowest note I can perform to the highest. I did this just for the screenshot, and it turns out I have the range of a baritono!
-
-<img src="device-2021-05-02-172252.png" width="200"/>
-
-And the final Q/A test, displaying Lena(https://www.youtube.com/watch?v=S64FROErFYA), or half of it as YouTube downsampled the sound to 22Khz.
-
-<img src="lena-2021-05-02-175125.png" width="200"/>
+- 4096 bins (freq resolution of )
+- Linear / Log scales for both axis
+- Hold function
+- Waterfall
+- Configurable 
+    - fft decay
+    - fft overlap
 
 
+## Screenshot
+![Screenshot][def]
 
+## Quickstart
+
+```
+git clone git@github.com:aguaviva/Android-imgui-template.git --recurse-submodules --shallow-submodules
+./cross-compile-kissfft.sh
+./build.sh
+```
+
+## Notes/stuff I need help with:
+- remember to grant microphone permissions or app will crash
+- If app loses focus will crash/lose data
+
+## credits
+- cnlohr for [rawdrawandroid](https://github.com/cnlohr/rawdrawandroid)
+- mborgerding for [kissfft](https://github.com/mborgerding/kissfft)
+
+[def]: Screenshot.png

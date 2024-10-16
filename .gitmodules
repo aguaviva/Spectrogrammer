@@ -1,0 +1,6 @@
+[submodule "app/src/main/jni/imgui"]
+	path = app/src/main/jni/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "app/src/main/jni/kissfft"]
+	path = app/src/main/jni/kissfft
+	url = https://github.com/mborgerding/kissfft.git
