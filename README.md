@@ -13,12 +13,11 @@ Android app that computes a spectrogram
 
 
 ## Screenshot
-![Screenshot][def]
+<img src="Screenshot.png" alt="Screenshot" width="200"/>
 
-## Quickstart
-
+## Building
 ```
-git clone git@github.com:aguaviva/Android-imgui-template.git --recurse-submodules --shallow-submodules
+git clone git@github.com:aguaviva/spectrogrammer.git --recurse-submodules --shallow-submodules
 ./cross-compile-kissfft.sh
 ./build.sh
 ```
