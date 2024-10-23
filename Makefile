@@ -110,11 +110,11 @@ ifeq ($(BUILD_ANDROID),y)
 LDFLAGS += -landroid -lGLESv3 -lEGL  -llog -lOpenSLES 
 LDFLAGS += -shared -uANativeActivity_onCreate
 LDFLAGS += -L$(NDK)/sources/cxx-stl/llvm-libc++/libs/arm64-v8a/ -lc++abi 
-LDFLAGS += `pkg-config --libs submodules/kissfft/arm64-v8a/lib64/pkgconfig/kissfft-float.pc`
+LDFLAGS += `pkg-config --libs libs/arm64-v8a/kissfft/lib64/pkgconfig/kissfft-float.pc`
 else
 LDFLAGS += -lGL `pkg-config --static --libs glfw3` 
 LDFLAGS += -lX11 -lpthread -lXinerama -lXext -lGL -lm -ldl -lstdc++
-LDFLAGS += `pkg-config --libs submodules/kissfft/x86_64/lib64/pkgconfig/kissfft-float.pc`
+LDFLAGS += `pkg-config --libs libs/x86_64/kissfft/lib64/pkgconfig/kissfft-float.pc`
 
 CFLAGS += `pkg-config --cflags glfw3` 
 CFLAGS += -std=c++11
@@ -164,7 +164,7 @@ folders:
 
 
 kissfft:
-	make -C submodules/kissfft LD=$(LD_ARM64) CC=$(CC_ARM64) AR=$(AR_ARM64) PREFIX=arm64-v8a KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install 
+	make -C submodules/kissfft PREFIX=../../libs/arm64-v8a/kissfft LD=$(LD_ARM64) CC=$(CC_ARM64) AR=$(AR_ARM64) KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install 
 
 ################## IMGUI
 
@@ -175,21 +175,21 @@ else
 IMGUI_SRCS += backends/imgui_impl_glfw.cpp
 endif
 
-submodules/imgui/obj/%.o : submodules/imgui/%.cpp
-	mkdir -p submodules/imgui/obj
-	mkdir -p submodules/imgui/obj/backends
+libs/arm64-v8a/imgui/objs/%.o : submodules/imgui/%.cpp
+	mkdir -p libs/arm64-v8a/imgui/objs
+	mkdir -p libs/arm64-v8a/imgui/objs/backends
 	#$(CC) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_x86_64) $^ -o $@
 	$(CC_ARM64) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_ARM64) $^ -o $@  
 
-submodules/imgui/lib/libimgui.a : $(addprefix submodules/imgui/obj/,$(subst .cpp,.o,$(IMGUI_SRCS)))
-	mkdir -p submodules/imgui/lib
+libs/arm64-v8a/imgui/libimgui.a : $(addprefix libs/arm64-v8a/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS)))
+	mkdir -p libs/imgui/
 	ar ru $@ $^
 
 ###############
 
-makecapk/lib/arm64-v8a/lib$(APPNAME).so : $(ANDROIDSRCS) submodules/imgui/lib/libimgui.a 
+makecapk/lib/arm64-v8a/lib$(APPNAME).so : $(ANDROIDSRCS) libs/arm64-v8a/imgui/libimgui.a 
 	mkdir -p makecapk/lib/arm64-v8a	
-	$(CC_ARM64) $(CFLAGS) $(LDFLAGS) $(CFLAGS_ARM64) -o $@ $(ANDROIDSRCS) submodules/imgui/lib/libimgui.a -L$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/$(ANDROIDVERSION) $(LDFLAGS)
+	$(CC_ARM64) $(CFLAGS) $(LDFLAGS) $(CFLAGS_ARM64) -o $@ $(ANDROIDSRCS) libs/arm64-v8a/imgui/libimgui.a -L$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/$(ANDROIDVERSION) $(LDFLAGS)
 
 makecapk/lib/armeabi-v7a/lib$(APPNAME).so : $(ANDROIDSRCS)
 	mkdir -p makecapk/lib/armeabi-v7a
@@ -262,6 +262,5 @@ run : push
 
 clean :
 	rm -rf AndroidManifest.xml temp.apk makecapk.apk makecapk $(APKFILE)
-	rm -rf submodules/imgui/obj submodules/imgui/lib
-	rm -rf submodules/kissfft/arm64-v8a 
-	rm linux_version
+	rm -rf libs
+	rm -rf linux_version
