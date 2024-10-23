@@ -182,7 +182,6 @@ libs/arm64-v8a/imgui/objs/%.o : submodules/imgui/%.cpp
 	$(CC_ARM64) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_ARM64) $^ -o $@  
 
 libs/arm64-v8a/imgui/libimgui.a : $(addprefix libs/arm64-v8a/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS)))
-	mkdir -p libs/imgui/
 	ar ru $@ $^
 
 ###############
