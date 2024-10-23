@@ -1,0 +1,41 @@
+name: rawdraw
+run-name: ${{ github.actor }} Executing
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+jobs:
+  Explore-GitHub-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Triggered by ${{ github.event_name }} on ${{ runner.os }}.  Branch Ref ${{ github.ref }}."
+      - name: Install dependencies.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends
+            build-essential
+            openjdk-11-jdk-headless
+            unzip
+            wget
+            zip
+            git
+            vim
+            gettext-base
+      - name: Check out respository code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Building rawdraw_sf.h
+        run: |
+          rm rawdraw_sf.h
+          make rawdraw_sf.h
+      #- name: Commit rawdraw_sf.h
+      #  run: |
+      #    git_hash=$(git rev-parse --short "$GITHUB_SHA")
+      #    git commit -m "Updating rawdraw_sf.h to ${git_hash}" rawdraw_sf.h
+      - uses: actions/upload-artifact@v3
+        with:
+          name: rawdraw_sf
+          path: rawdraw_sf.h
+

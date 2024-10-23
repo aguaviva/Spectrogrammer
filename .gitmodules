@@ -4,3 +4,9 @@
 [submodule "app/src/main/jni/kissfft"]
 	path = app/src/main/jni/kissfft
 	url = https://github.com/mborgerding/kissfft.git
+[submodule "submodules/kissfft"]
+	path = submodules/kissfft
+	url = git@github.com:mborgerding/kissfft.git
+[submodule "submodules/imgui"]
+	path = submodules/imgui
+	url = git@github.com:ocornut/imgui.git
