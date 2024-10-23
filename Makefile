@@ -61,10 +61,6 @@ ifeq ($(OS), Windows_NT)
 OS_NAME = windows-x86_64
 endif
 
-# For C++
-# LDFLAGS += -static-libstdc++
-# $(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/libc.a
-
 # Search list for where to try to find the SDK
 SDK_LOCATIONS += $(ANDROID_HOME) $(ANDROID_SDK_ROOT) ~/Android/Sdk $(HOME)/Library/Android/sdk
 
@@ -261,5 +257,5 @@ run : push
 
 clean :
 	rm -rf AndroidManifest.xml temp.apk makecapk.apk makecapk $(APKFILE)
-	rm -rf libs
+	#rm -rf libs
 	rm -rf linux_version

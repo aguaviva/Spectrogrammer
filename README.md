@@ -30,6 +30,8 @@ make push run
 - getting a nice makefile that can compile for linux and windows
 - I can't get to build the app and kissfft in on step
 - Created a rudimetary lib for imgui to speed up linking, is there a better way?
+- App shouldn't refresh as soon as possible, only when needed
+- should prob use Cnlohr audio libs :)
 
 ## credits
 - cnlohr for [rawdrawandroid](https://github.com/cnlohr/rawdrawandroid)
