@@ -1,5 +1,9 @@
 # Built application files
 *.apk
+*.map
+*.idsig
+*.arsc
+AndroidManifest.xml
 
 # Generated files
 bin/

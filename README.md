@@ -17,14 +17,19 @@ Android app that computes a spectrogram
 
 ## Building
 ```
+# clone with
 git clone git@github.com:aguaviva/spectrogrammer.git --recurse-submodules --shallow-submodules
-./cross-compile-kissfft.sh
-./build.sh
+# build kissfft
+make kissfft
+# build and run the app (connect your cellphone!)
+make push run 
 ```
 
 ## Notes/stuff I need help with:
-- remember to grant microphone permissions or app will crash
 - If app loses focus will crash/lose data
+- getting a nice makefile that can compile for linux and windows
+- I can't get to build the app and kissfft in on step
+- Created a rudimetary lib for imgui to speed up linking, is there a better way?
 
 ## credits
 - cnlohr for [rawdrawandroid](https://github.com/cnlohr/rawdrawandroid)

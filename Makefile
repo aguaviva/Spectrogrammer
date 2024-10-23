@@ -164,15 +164,16 @@ folders:
 
 
 kissfft:
-	cd submodules
-	#make -C kissfft LD=$(LD_ARM64) CC=$(CC_ARM64) AR=$(AR_ARM64) PREFIX=arm64-v8a KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install ; \
-	cd ..
+	make -C submodules/kissfft LD=$(LD_ARM64) CC=$(CC_ARM64) AR=$(AR_ARM64) PREFIX=arm64-v8a KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install 
+
 ################## IMGUI
 
 IMGUI_SRCS := imgui.cpp imgui_draw.cpp imgui_tables.cpp imgui_widgets.cpp backends/imgui_impl_opengl3.cpp
-#IMGUI_SRCS += backends/imgui_impl_glfw.cpp
+ifeq ($(BUILD_ANDROID),y)
 IMGUI_SRCS += backends/imgui_impl_android.cpp 
-
+else
+IMGUI_SRCS += backends/imgui_impl_glfw.cpp
+endif
 
 submodules/imgui/obj/%.o : submodules/imgui/%.cpp
 	mkdir -p submodules/imgui/obj
@@ -186,7 +187,7 @@ submodules/imgui/lib/libimgui.a : $(addprefix submodules/imgui/obj/,$(subst .cpp
 
 ###############
 
-makecapk/lib/arm64-v8a/lib$(APPNAME).so : $(ANDROIDSRCS) submodules/imgui/lib/libimgui.a kissfft
+makecapk/lib/arm64-v8a/lib$(APPNAME).so : $(ANDROIDSRCS) submodules/imgui/lib/libimgui.a 
 	mkdir -p makecapk/lib/arm64-v8a	
 	$(CC_ARM64) $(CFLAGS) $(LDFLAGS) $(CFLAGS_ARM64) -o $@ $(ANDROIDSRCS) submodules/imgui/lib/libimgui.a -L$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/$(ANDROIDVERSION) $(LDFLAGS)
 
@@ -217,7 +218,7 @@ linux_version : $(SRC) imgui/lib/libimgui.a
 
 makecapk.apk : $(TARGETS) $(EXTRA_ASSETS_TRIGGER) $(SRC_DIR)/AndroidManifest.xml 
 	mkdir -p makecapk/assets
-	cp -r $(SRC_DIR)/assets/* makecapk/assets
+	#cp -r $(SRC_DIR)/assets/* makecapk/assets
 	rm -rf temp.apk
 	$(AAPT) package -f -F temp.apk -I $(ANDROIDSDK)/platforms/android-$(ANDROIDVERSION)/android.jar -M $(SRC_DIR)/AndroidManifest.xml -S $(SRC_DIR)/res -A makecapk/assets -v --target-sdk-version $(ANDROIDTARGET)
 	unzip -o temp.apk -d makecapk
