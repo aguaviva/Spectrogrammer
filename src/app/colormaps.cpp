@@ -526,7 +526,8 @@ static uint16_t _hotcold_data[256]  = {
     CONVERT(0.999602,0.951920,0.000199),
     CONVERT(0.999816,0.967133,0.000092),
     CONVERT(0.999948,0.982508,0.000026),
-    CONVERT(1.000000,1.000000,0.000000)
+    CONVERT(1.000000,1.000000,0.000000), 
+    CONVERT(1.000000,1.000000,0.000000)  //duplicating as this scale only has 257 colors
 };
 
 uint16_t *pData = _magma_data;

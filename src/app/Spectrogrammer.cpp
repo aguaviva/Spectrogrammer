@@ -42,7 +42,11 @@ float decay = .5f;
 float volume = 1;
 bool logX=true, logY=true;
 bool play = true;
+bool hold_pressed = false;
 bool hold_spectrum = false;
+float axis_y_min = -120;
+float axis_y_max = -20;
+
 
 Processor *pProcessor = NULL;
 ScaleBufferBase *pScaleBufferX = nullptr;
@@ -52,7 +56,8 @@ ChunkerProcessor chunker;
 
 BufferIODouble audioSamples;
 BufferIODouble spectrumSamples;
-BufferIODouble spectrumSamplesHold;
+BufferIODouble spectrumSamplesHold_data;
+BufferIODouble spectrumSamplesHold_lines;
 
 sample_buf * buffers;
 AudioQueue* pFreeQueue = nullptr;
@@ -64,6 +69,20 @@ static int32_t handleInputEvent(struct android_app* app, AInputEvent* inputEvent
     return ImGui_ImplAndroid_HandleInputEvent(inputEvent);
 }
 #endif
+
+void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble *pLines)
+{
+    float *pDataIn = pBins->GetData();
+    pLines->Resize(2 * (pBins->GetSize()-1));
+    float *pDataOut = pLines->GetData();   
+    int i=0;             
+    for (int bin=1;bin<pBins->GetSize();bin++) //skip bin 0 is DC
+    {
+        pDataOut[2 * i + 0] = pScaleBufferX->FreqToX(pProcessor->bin2Freq(bin)); 
+        pDataOut[2 * i + 1] = pDataIn[bin];
+        i++;
+    }
+}
 
 void Spectrogrammer_Init(void *window)
 {
@@ -167,7 +186,7 @@ void draw_log_scale(ImRect frame_bb)
                     strcat(str, " Hz");
                 }
                 window->DrawList->AddText(
-                    ImVec2(x - textWidth/2, frame_bb.Min.y + 300), 
+                    ImVec2(x - textWidth/2, frame_bb.Min.y + 400), 
                     ImGui::GetColorU32(ImGuiCol_Text), 
                     str
                 );
@@ -273,16 +292,30 @@ BufferIODouble *Spectrogrammer_ProcessAudio(bool play, Processor *pProcessor, Sc
     {
         if (play)
         {
-            pBins = pProcessor->getBufferIO();            
+            pBins = pProcessor->getBufferIO();  
+
             pBins = bufferAverage.Do(pBins);
             if (pBins!=NULL)
             {           
-                scaleBufferY.apply(pBins, logY?1.0f:20.0f, logY);
+                scaleBufferY.apply(pBins, axis_y_min, axis_y_max, logY);
                 pBins = &scaleBufferY;
 
                 pScaleBufferX->Build(pBins);
                 BufferIODouble *pScaledXBins = pScaleBufferX->GetBuffer();
-                
+
+                // if holding substract baseline
+                if (hold_pressed)
+                {
+                    generate_spectrum_lines_from_bin_data(pBins, &spectrumSamplesHold_lines);
+                    spectrumSamplesHold_data.copy(pScaledXBins);
+                    hold_pressed = false;
+                }
+                if (hold_spectrum)
+                {
+                    pScaledXBins->sub(&spectrumSamplesHold_data);
+                    pScaledXBins->add(0.5);
+                }
+
                 Draw_update(
                     pScaledXBins->GetData()+1, 
                     pScaledXBins->GetSize()-1
@@ -329,7 +362,9 @@ void Spectrogrammer_MainLoopStep()
 
     ImGui::Checkbox("Play", &play);
     ImGui::SameLine();
-    bool hold_pressed = ImGui::Checkbox("Hold", &hold_spectrum);
+    if (ImGui::Checkbox("Hold", &hold_spectrum))
+        hold_pressed = true; // so data gets captured when ready
+        
     SetColorMap(hold_spectrum?1:0);
     ImGui::SameLine();
     if (ImGui::Button("Modal"))
@@ -343,6 +378,9 @@ void Spectrogrammer_MainLoopStep()
         bScaleXChanged = ImGui::Checkbox("Log x", &logX);
         ImGui::SameLine();
         ImGui::Checkbox("Log y", &logY);
+
+        ImGui::SliderFloat("y max", &axis_y_max, -120.0f, 0.0f);
+        ImGui::SliderFloat("y min", &axis_y_min, -120.0f, 0.0f);
 
         //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
@@ -368,7 +406,7 @@ void Spectrogrammer_MainLoopStep()
     ImRect frame_fft_bb;
     bool draw_frame_fft_bb;
     {
-        int frame_height = 300;
+        int frame_height = 400;
         bool hovered;
         draw_frame_fft_bb = block_add("fft", ImVec2(ImGui::GetContentRegionAvail().x, frame_height), &frame_fft_bb, &hovered);
         if (draw_frame_fft_bb)
@@ -410,16 +448,7 @@ void Spectrogrammer_MainLoopStep()
     {
         if (pBins!=NULL && play)
         {
-            float *pDataIn = pBins->GetData();
-            spectrumSamples.Resize(2 * (pProcessor->getBinCount()-1));
-            float *pDataOut = spectrumSamples.GetData();   
-            int i=0;             
-            for (int bin=1;bin<pBins->GetSize();bin++) //skip bin 0 is DC
-            {
-                pDataOut[2 * i + 0] = pScaleBufferX->FreqToX(pProcessor->bin2Freq(bin)); 
-                pDataOut[2 * i + 1] = pDataIn[bin];
-                i++;
-            }
+            generate_spectrum_lines_from_bin_data(pBins, &spectrumSamples);
         }
 
         ImU32 col = IM_COL32(200, 200, 200, 200);
@@ -427,13 +456,8 @@ void Spectrogrammer_MainLoopStep()
 
         if (hold_spectrum)
         {
-            if (hold_pressed)
-            {
-                spectrumSamplesHold.copy(&spectrumSamples);
-            }
-
             ImU32 col = IM_COL32(200, 0, 0, 200);
-            draw_lines(frame_fft_bb, spectrumSamplesHold.GetData(), spectrumSamplesHold.GetSize()/2, col, 0, 1);
+            draw_lines(frame_fft_bb, spectrumSamplesHold_lines.GetData(), spectrumSamplesHold_lines.GetSize()/2, col, 0, 1);
         }
         
         if (logX)

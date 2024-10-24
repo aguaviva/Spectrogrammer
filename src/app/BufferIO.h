@@ -61,6 +61,26 @@ public:
         }
     }
 
+    void add(float v)
+    {
+        for(int i=0;i<GetSize();i++)
+        {
+            m_rout[i] += v;
+        }
+    }
+
+    void sub(BufferIO<type> *pIn)
+    {
+        assert(pIn->GetSize()==GetSize());
+
+        float *pDataIn = pIn->GetData();
+        for(int i=0;i<pIn->GetSize();i++)
+        {
+            m_rout[i] -= pDataIn[i];
+        }
+    }
+
+
     void mul(float k)
     {
         for(int i=0;i<GetSize();i++)

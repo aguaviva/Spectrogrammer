@@ -9,7 +9,7 @@
 class ScaleBufferY : public BufferIODouble
 {
 public:
-    void apply(BufferIODouble *inputIO, float volume, bool use_log)
+    void apply(BufferIODouble *inputIO, float min, float max, bool use_log)
     {
         if (inputIO->GetSize()!=GetSize())
         {
@@ -24,29 +24,37 @@ public:
         if (use_log)
         {
             // log Y axis
-            const float ref = 32768/volume;
+            const float ref = 32768;
+
+            //min = linearToDecibels(min, ref);
+            //max = linearToDecibels(max, ref);
+
             for (int i = 0; i < GetSize(); i++)
             {
-                float dec = convertToDecibels(pInput[i], ref);
-                pOutput[i] = clamp(unlerp( -120, -20, dec), 0, 1);
+                float dec = linearToDecibels(pInput[i], ref);
+                pOutput[i] = clamp(unlerp( min, max, dec), 0, 1);
             }
         }
         else
         {
-            float max =  32768/volume;
             for (int i = 0; i < GetSize(); i++)
             {
-                pOutput[i] = clamp(unlerp( 0, max , pInput[i]), 0, 1);
+                pOutput[i] = clamp(unlerp( min, max , pInput[i]), 0, 1);
             }
         }
     }
 
-    float convertToDecibels(float v, float ref)
+    float linearToDecibels(float v, float ref)
     {
         if (v<=0.001)
             return -120;
 
         return 20 * log10(v / ref);
+    }
+
+    float decibelsToLinear(float v, float ref)
+    {
+        return ref * pow(10, v *  20.0f);
     }
 };
 
