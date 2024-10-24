@@ -116,7 +116,7 @@ void Draw_update(float *pData, uint32_t size)
     uint16_t image_data[4*1024];
     for(int i=0;i<texture_width;i++)
     {
-        image_data[i] = GetMagma(pData[i] *255);
+        image_data[i] = GetColorMap(pData[i] *255);
     }
 
     update_texture_row(image_data);

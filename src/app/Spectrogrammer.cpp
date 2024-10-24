@@ -6,6 +6,7 @@
 #include "ScaleBufferY.h"
 #include "BufferAverage.h"
 #include "Spectrogrammer.h"
+#include "colormaps.h"
 #include <GLES3/gl3.h>
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -166,7 +167,7 @@ void draw_log_scale(ImRect frame_bb)
                     strcat(str, " Hz");
                 }
                 window->DrawList->AddText(
-                    ImVec2(x - textWidth/2, frame_bb.Min.y + 150), 
+                    ImVec2(x - textWidth/2, frame_bb.Min.y + 300), 
                     ImGui::GetColorU32(ImGuiCol_Text), 
                     str
                 );
@@ -329,10 +330,29 @@ void Spectrogrammer_MainLoopStep()
     ImGui::Checkbox("Play", &play);
     ImGui::SameLine();
     bool hold_pressed = ImGui::Checkbox("Hold", &hold_spectrum);
+    SetColorMap(hold_spectrum?1:0);
     ImGui::SameLine();
-    bool bScaleXChanged = ImGui::Checkbox("Log x", &logX);
-    ImGui::SameLine();
-    ImGui::Checkbox("Log y", &logY);
+    if (ImGui::Button("Modal"))
+        ImGui::OpenPopup("Modal window");
+
+    bool bScaleXChanged = false;
+
+    bool open = true;
+    if (ImGui::BeginPopupModal("Modal window", &open, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        bScaleXChanged = ImGui::Checkbox("Log x", &logX);
+        ImGui::SameLine();
+        ImGui::Checkbox("Log y", &logY);
+
+        //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
+        ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
+        if (ImGui::SliderInt("averaging", &averaging, 1,500))
+            bufferAverage.setAverageCount(averaging);
+
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 
     if (bScaleXChanged || pScaleBufferX==NULL)
     {
@@ -344,16 +364,11 @@ void Spectrogrammer_MainLoopStep()
             pScaleBufferX = new ScaleBufferXLin();
     }
 
-    //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
-    ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
-    if (ImGui::SliderInt("averaging", &averaging, 1,500))
-        bufferAverage.setAverageCount(averaging);
-
     // Draw FFT UI
     ImRect frame_fft_bb;
     bool draw_frame_fft_bb;
     {
-        int frame_height = 150;
+        int frame_height = 300;
         bool hovered;
         draw_frame_fft_bb = block_add("fft", ImVec2(ImGui::GetContentRegionAvail().x, frame_height), &frame_fft_bb, &hovered);
         if (draw_frame_fft_bb)
