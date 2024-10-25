@@ -42,22 +42,33 @@ float decay = .5f;
 float volume = 1;
 bool logX=true, logY=true;
 bool play = true;
-bool hold_pressed = false;
 bool hold_spectrum = false;
 float axis_y_min = -120;
 float axis_y_max = -20;
 
 
+enum HOLDING_STATE
+{
+    HOLDING_STATE_NO_HOLD=0,
+    HOLDING_STATE_STARTED=1,
+    HOLDING_STATE_READY=2
+};
+
+HOLDING_STATE holding_state = HOLDING_STATE_NO_HOLD;
+
 Processor *pProcessor = NULL;
 ScaleBufferBase *pScaleBufferX = nullptr;
-ScaleBufferY  scaleBufferY;
-BufferAverage bufferAverage;
 ChunkerProcessor chunker;
 
-BufferIODouble audioSamples;
+BufferIODouble scaledPowerY;
+BufferIODouble scaledPowerXY;
+BufferAverage bufferAverage;
 BufferIODouble spectrumSamples;
-BufferIODouble spectrumSamplesHold_data;
-BufferIODouble spectrumSamplesHold_lines;
+
+BufferIODouble heldPower_lines;
+BufferIODouble heldPower_bins;
+BufferIODouble heldScaledPowerY;
+BufferIODouble heldScaledPowerXY;
 
 sample_buf * buffers;
 AudioQueue* pFreeQueue = nullptr;
@@ -138,10 +149,18 @@ void Spectrogrammer_Init(void *window)
         buffers[i].size_ = 2;
         pFreeQueue->push(&buffers[i]);
     }
+
 #endif    
-    
+
+    float sampleRate;
+    AudioQueue* pFreeQueue = nullptr;
+    AudioQueue* pRecQueue = nullptr;
+    GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
+
+    chunker.SetQueues(pRecQueue, pFreeQueue);
+    chunker.begin();
+
     pProcessor = new myFFT();
-    //pProcessor = new PassThrough();
     pProcessor->init(fft_size, sample_rate);
 
     min_freq = pProcessor->bin2Freq(1);
@@ -152,6 +171,8 @@ void Spectrogrammer_Init(void *window)
 
 void Spectrogrammer_Shutdown()
 {
+    chunker.end();
+
 #ifdef ANDROID    
     Audio_deleteAudioRecorder();
     Audio_deleteSLEngine();
@@ -253,84 +274,48 @@ void generate_debug_signal(sample_buf *pBuf)
     }
 }
 
-BufferIODouble *Spectrogrammer_ProcessAudio(bool play, Processor *pProcessor, ScaleBufferBase *pScaleBufferX)
+typedef void (* process_fn)(BufferIODouble *pData);
+
+void Spectrogrammer_ProcessAudio(bool play, Processor *pProcessor, ScaleBufferBase *pScaleBufferX)
 {
-#ifdef ANDROID
-    AudioQueue* pFreeQueue = nullptr;
-    AudioQueue* pRecQueue = nullptr;
-    float sampleRate;
-    GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
-#else
-    sample_buf *buf = nullptr;
-    while (pFreeQueue->front(&buf))
-    {
-        pFreeQueue->pop();
-        pRecQueue->push(buf);
-    }
-#endif
-    
-    // pass available buffers to processor
-    if (pRecQueue!=NULL )
-    {
-        sample_buf *buf = nullptr;
-        while (pRecQueue->front(&buf))
-        {
-            pRecQueue->pop();
-
-            //generate_debug_signal(buf);
-
-            if (chunker.pushAudioChunk(buf) == false)
-            {
-                droppedBuffers++;
-            }
-        }    
-    }    
-
     //if we have enough data queued process the fft
-    BufferIODouble *pBins = NULL;
+    BufferIODouble *pPower = NULL;
     while (chunker.Process(pProcessor, decay, fraction_overlap))
     {
         if (play)
         {
-            pBins = pProcessor->getBufferIO();  
-
-            pBins = bufferAverage.Do(pBins);
-            if (pBins!=NULL)
+            pPower = pProcessor->getBufferIO();  
+            pPower = bufferAverage.Do(pPower);
+            if (pPower!=NULL)
             {           
-                scaleBufferY.apply(pBins, axis_y_min, axis_y_max, logY);
-                pBins = &scaleBufferY;
+                //process(pPower);
+                // values between 0 and 1
+                applyScaleY(pPower, axis_y_min, axis_y_max, logY, &scaledPowerY);
 
-                pScaleBufferX->Build(pBins);
-                BufferIODouble *pScaledXBins = pScaleBufferX->GetBuffer();
+                pScaleBufferX->Build(&scaledPowerY, &scaledPowerXY);
 
-                // if holding substract baseline
-                if (hold_pressed)
+                if (holding_state == HOLDING_STATE_STARTED)
                 {
-                    generate_spectrum_lines_from_bin_data(pBins, &spectrumSamplesHold_lines);
-                    spectrumSamplesHold_data.copy(pScaledXBins);
-                    hold_pressed = false;
-                }
-                if (hold_spectrum)
+                    heldPower_bins.copy(pPower); //need original
+                    heldScaledPowerXY.copy(&scaledPowerXY);                    
+
+                    holding_state = HOLDING_STATE_READY;
+                } 
+
+                if (holding_state == HOLDING_STATE_READY)
                 {
-                    pScaledXBins->sub(&spectrumSamplesHold_data);
-                    pScaledXBins->add(0.5);
+                    scaledPowerXY.sub(&heldScaledPowerXY);
+                    scaledPowerXY.add(0.5);
                 }
 
                 Draw_update(
-                    pScaledXBins->GetData()+1, 
-                    pScaledXBins->GetSize()-1
+                    scaledPowerXY.GetData()+1, 
+                    scaledPowerXY.GetSize()-1
                 );
                 processedChunks++;
             }
         }
     }
-
-    // return processed buffers
-    sample_buf *buf = nullptr;
-    while (chunker.getFreeBufferFrontAndPop(&buf))
-        pFreeQueue->push(buf);
-
-    return pBins;
 }
 
 void Spectrogrammer_MainLoopStep()
@@ -362,25 +347,42 @@ void Spectrogrammer_MainLoopStep()
 
     ImGui::Checkbox("Play", &play);
     ImGui::SameLine();
-    if (ImGui::Checkbox("Hold", &hold_spectrum))
-        hold_pressed = true; // so data gets captured when ready
-        
+    
+    if (holding_state == HOLDING_STATE_STARTED) 
+        ImGui::BeginDisabled();
+
+    bool bHold_pressed = ImGui::Checkbox("Hold", &hold_spectrum);
+
+    if (holding_state == HOLDING_STATE_STARTED) 
+        ImGui::EndDisabled();
+
+    if (bHold_pressed)
+    {
+        if (hold_spectrum)
+            holding_state = HOLDING_STATE_STARTED;
+        else
+            holding_state = HOLDING_STATE_NO_HOLD;
+    }   
+
     SetColorMap(hold_spectrum?1:0);
+
     ImGui::SameLine();
-    if (ImGui::Button("Modal"))
-        ImGui::OpenPopup("Modal window");
+    if (ImGui::Button("Menu"))
+        ImGui::OpenPopup("Settings");
 
     bool bScaleXChanged = false;
+    bool bScaleChanged = false;
 
     bool open = true;
-    if (ImGui::BeginPopupModal("Modal window", &open, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal("Settings", &open, ImGuiWindowFlags_AlwaysAutoResize))
     {
         bScaleXChanged = ImGui::Checkbox("Log x", &logX);
+        bScaleChanged |= bScaleXChanged;
         ImGui::SameLine();
-        ImGui::Checkbox("Log y", &logY);
+        bScaleChanged |= ImGui::Checkbox("Log y", &logY);
 
-        ImGui::SliderFloat("y max", &axis_y_max, -120.0f, 0.0f);
-        ImGui::SliderFloat("y min", &axis_y_min, -120.0f, 0.0f);
+        bScaleChanged |= ImGui::SliderFloat("y max", &axis_y_max, -120.0f, 0.0f);
+        bScaleChanged |= ImGui::SliderFloat("y min", &axis_y_min, -120.0f, 0.0f);
 
         //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
@@ -442,30 +444,50 @@ void Spectrogrammer_MainLoopStep()
         }
     }
 
-    BufferIODouble *pBins = Spectrogrammer_ProcessAudio(play, pProcessor, pScaleBufferX);
+    Spectrogrammer_ProcessAudio(play, pProcessor, pScaleBufferX);
+
+    // now we know the size of the UI
+
+    // rescale held  data if needed        
+    if (holding_state == HOLDING_STATE_READY)
+    {
+        if (bScaleChanged || bHold_pressed)
+        {
+            // rescale Y axis to held line is correct
+            applyScaleY(&heldPower_bins, axis_y_min, axis_y_max, logY, &heldScaledPowerY);            
+            generate_spectrum_lines_from_bin_data(&heldScaledPowerY, &heldPower_lines);
+
+            // rescale X axis to waterfall is correct
+            pScaleBufferX->Build(&heldScaledPowerY, &heldScaledPowerXY);
+        }
+    }
+    // draw spectrogram
 
     if (draw_frame_fft_bb)
     {
-        if (pBins!=NULL && play)
+        if (play)
         {
-            generate_spectrum_lines_from_bin_data(pBins, &spectrumSamples);
+            generate_spectrum_lines_from_bin_data(&scaledPowerY, &spectrumSamples);
         }
 
+        // draw spectrogram
         ImU32 col = IM_COL32(200, 200, 200, 200);
         draw_lines(frame_fft_bb, spectrumSamples.GetData(), spectrumSamples.GetSize()/2, col, 0, 1);
 
-        if (hold_spectrum)
+        // draw baseline
+        if (holding_state == HOLDING_STATE_READY)
         {
             ImU32 col = IM_COL32(200, 0, 0, 200);
-            draw_lines(frame_fft_bb, spectrumSamplesHold_lines.GetData(), spectrumSamplesHold_lines.GetSize()/2, col, 0, 1);
+            draw_lines(frame_fft_bb, heldPower_lines.GetData(), heldPower_lines.GetSize()/2, col, 0, 1);
         }
         
         if (logX)
             draw_log_scale(frame_fft_bb);   
         else
             draw_lin_scale(frame_fft_bb);   
-
     }
+
+    // Draw waterfall
 
     if (draw_frame_wfall_bb)
     {

@@ -12,8 +12,8 @@ class ChunkerProcessor
     int m_destOffset = 0;
     int m_bufferIndex = 0;
 
-    AudioQueue recQueue{QUEUE_SIZE};
-    AudioQueue freeQueue{QUEUE_SIZE};
+    AudioQueue *m_pRecQueue = NULL;
+    AudioQueue *m_pFreeQueue = NULL;
 
     bool PrepareBuffer(Processor *pSpectrum);
     AU_FORMAT *GetSampleData(sample_buf *b0)
@@ -22,11 +22,10 @@ class ChunkerProcessor
     }
 
 public:
+
     void begin();
     void end();
-    void Reset();
-    bool pushAudioChunk(sample_buf *buf);
-    bool getFreeBufferFrontAndPop(sample_buf **buf);
+    void SetQueues(AudioQueue *pRecQueue, AudioQueue *pFreeQueue);
     bool releaseUsedAudioChunks();
     bool Process(Processor *pSpectrum, double decay, double fractionOverlap);
 };

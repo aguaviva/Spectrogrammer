@@ -11,23 +11,13 @@ template <bool use_log>
 class ScaleBufferX : public ScaleBufferBase
 {
     Scale<use_log> scaleBintoFreq;
-    BufferIOInt *m_pBinsOffsets;
+    BufferIOInt m_binOffsets;
 
 public:
-    ~ScaleBufferX()
-    {
-        delete(m_pBinsOffsets);
-    }
-
     void setOutputWidth(int outputWidth, float minFreq, float maxFreq)
     {
-        delete (m_pOutput);
-        m_pOutput = new BufferIODouble(outputWidth);
-        m_pOutput->clear();
-
-        delete (m_pBinsOffsets);
-        m_pBinsOffsets = new BufferIOInt(outputWidth);
-        m_pBinsOffsets->clear();
+        m_binOffsets.Resize(outputWidth);
+        m_binOffsets.clear();
 
         scaleBintoFreq.init(minFreq, maxFreq);
     }
@@ -44,33 +34,31 @@ public:
 
     void PreBuild(Processor *pProc)
     {
-        int *pBins = m_pBinsOffsets->GetData();
-        for(int i=0; i < m_pBinsOffsets->GetSize(); i++)
+        int *pBins = m_binOffsets.GetData();
+        for(int i=0; i < m_binOffsets.GetSize(); i++)
         {
-            float t = (float)i/(float)(m_pBinsOffsets->GetSize()-1.0f);
+            float t = (float)i/(float)(m_binOffsets.GetSize()-1.0f);
             float freq = XtoFreq(t);
             int bin2 = (int)floor(pProc->freq2Bin(freq));
             pBins[i] = bin2;
         }
     }
 
-    void Build(BufferIODouble *inputIO)
+    void Build(BufferIODouble *pInput, BufferIODouble *pOutput)
     {
-        //set bins to min value
-        m_pOutput->clear();
+        pOutput->Resize(m_binOffsets.GetSize());
 
-        float *input = inputIO->GetData();
-        float *output = m_pOutput->GetData();
-        int *pBins = m_pBinsOffsets->GetData();
+        float *pInputData = pInput->GetData();
+        float *pOutputData = pOutput->GetData();
+        int *pBins = m_binOffsets.GetData();
 
-        for(int x=0; x < m_pOutput->GetSize(); x++)
-            output[x] = 0;
+        pOutput->clear();
 
         // set X axis
-        for(int x=0; x < m_pOutput->GetSize(); x++)
+        for(int x=0; x < m_binOffsets.GetSize(); x++)
         {
             int bin = pBins[x];
-            output[x]=std::max(input[bin], output[x]);
+            pOutputData[x]=std::max(pInputData[bin], pOutputData[x]);
         }
     }
 };

@@ -16,37 +16,25 @@ void ChunkerProcessor::begin()
 void ChunkerProcessor::end()
 {
     assert(m_started == true);
-
-    sample_buf *buf = nullptr;
-    while (recQueue.front(&buf))
-    {
-        recQueue.pop();
-        assert(buf);
-
-        freeQueue.push(buf);
-    }
-
     m_started = false;
-}
-
-bool ChunkerProcessor::pushAudioChunk(sample_buf *buf)
-{
-    bool res = recQueue.push(buf);
-    return res;
 }
 
 bool ChunkerProcessor::releaseUsedAudioChunks()
 {
+    assert(m_pRecQueue!=NULL);
+
     sample_buf *front = nullptr;
-    while(recQueue.front(&front))
+    while(m_pRecQueue->front(&front))
     {
+        assert(front!=NULL);
+
         int frontSize = AU_LEN(front->cap_);
 
         if (m_offset < frontSize)
             return true;
 
-        recQueue.pop();
-        freeQueue.push(front);
+        m_pRecQueue->pop();
+        m_pFreeQueue->push(front);
 
         m_offset -= frontSize;
     }
@@ -54,24 +42,19 @@ bool ChunkerProcessor::releaseUsedAudioChunks()
     return false;
 }
 
-bool ChunkerProcessor::getFreeBufferFrontAndPop(sample_buf **buf)
+void ChunkerProcessor::SetQueues(AudioQueue *pRecQueue, AudioQueue *pFreeQueue)
 {
-    if (freeQueue.front(buf))
-    {
-        freeQueue.pop();
-        return true;
-    }
-    return false;
-}
+    assert(pRecQueue!=NULL);
+    assert(pFreeQueue!=NULL);
 
-void ChunkerProcessor::Reset()
-{
-    m_destOffset = 0;
-    m_bufferIndex = 0;
+    m_pRecQueue = pRecQueue;
+    m_pFreeQueue = pFreeQueue;
 }
 
 bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
 {
+    assert(pSpectrum!=NULL);
+
     int dataToWrite = pSpectrum->getProcessedLength();
 
     if (m_bufferIndex==0)
@@ -81,9 +64,9 @@ bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
 
         m_srcOffset = m_offset;
     }
-
+    
     sample_buf *buf = nullptr;
-    while(recQueue.peek(&buf, m_bufferIndex))
+    while(m_pRecQueue->peek(&buf, m_bufferIndex))
     {
         int bufSize = AU_LEN(buf->cap_);
         int srcBufLeft = bufSize - m_srcOffset;
@@ -115,11 +98,12 @@ bool ChunkerProcessor::PrepareBuffer(Processor *pSpectrum)
 }
 
 bool ChunkerProcessor::Process(Processor *pSpectrum, double decay, double fractionOverlap)
-{
+{    
     if (PrepareBuffer(pSpectrum))
     {
         pSpectrum->computePower(decay);
         m_offset += pSpectrum->getProcessedLength() * (1.0f - fractionOverlap);
+
         return true;
     }
 
