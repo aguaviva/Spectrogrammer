@@ -71,8 +71,6 @@ BufferIODouble heldScaledPowerY;
 BufferIODouble heldScaledPowerXY;
 
 sample_buf * buffers;
-AudioQueue* pFreeQueue = nullptr;
-AudioQueue* pRecQueue = nullptr;
 
 #ifdef ANDROID
 static int32_t handleInputEvent(struct android_app* app, AInputEvent* inputEvent)
@@ -274,50 +272,6 @@ void generate_debug_signal(sample_buf *pBuf)
     }
 }
 
-typedef void (* process_fn)(BufferIODouble *pData);
-
-void Spectrogrammer_ProcessAudio(bool play, Processor *pProcessor, ScaleBufferBase *pScaleBufferX)
-{
-    //if we have enough data queued process the fft
-    BufferIODouble *pPower = NULL;
-    while (chunker.Process(pProcessor, decay, fraction_overlap))
-    {
-        if (play)
-        {
-            pPower = pProcessor->getBufferIO();  
-            pPower = bufferAverage.Do(pPower);
-            if (pPower!=NULL)
-            {           
-                //process(pPower);
-                // values between 0 and 1
-                applyScaleY(pPower, axis_y_min, axis_y_max, logY, &scaledPowerY);
-
-                pScaleBufferX->Build(&scaledPowerY, &scaledPowerXY);
-
-                if (holding_state == HOLDING_STATE_STARTED)
-                {
-                    heldPower_bins.copy(pPower); //need original
-                    heldScaledPowerXY.copy(&scaledPowerXY);                    
-
-                    holding_state = HOLDING_STATE_READY;
-                } 
-
-                if (holding_state == HOLDING_STATE_READY)
-                {
-                    scaledPowerXY.sub(&heldScaledPowerXY);
-                    scaledPowerXY.add(0.5);
-                }
-
-                Draw_update(
-                    scaledPowerXY.GetData()+1, 
-                    scaledPowerXY.GetSize()-1
-                );
-                processedChunks++;
-            }
-        }
-    }
-}
-
 void Spectrogrammer_MainLoopStep()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -372,6 +326,12 @@ void Spectrogrammer_MainLoopStep()
 
     bool bScaleXChanged = false;
     bool bScaleChanged = false;
+
+    float sampleRate;
+    AudioQueue* pFreeQueue = nullptr;
+    AudioQueue* pRecQueue = nullptr;
+    GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
+    ImGui::Text("r: %3i, f: %3i", pRecQueue->size(), pFreeQueue->size());   
 
     bool open = true;
     if (ImGui::BeginPopupModal("Settings", &open, ImGuiWindowFlags_AlwaysAutoResize))
@@ -444,23 +404,60 @@ void Spectrogrammer_MainLoopStep()
         }
     }
 
-    Spectrogrammer_ProcessAudio(play, pProcessor, pScaleBufferX);
+    //if we have enough audio queued process the fft, update waterfall
+    BufferIODouble *pPower = NULL;
+    while (chunker.Process(pProcessor, decay, fraction_overlap))
+    {
+        if (play)
+        {
+            pPower = pProcessor->getBufferIO();  
+            pPower = bufferAverage.Do(pPower);
+            if (pPower!=NULL)
+            {           
+                //process(pPower);
+                // values between 0 and 1
+                applyScaleY(pPower, axis_y_min, axis_y_max, logY, &scaledPowerY);
+
+                pScaleBufferX->Build(&scaledPowerY, &scaledPowerXY);
+
+                if (holding_state == HOLDING_STATE_READY)
+                {
+                    scaledPowerXY.sub(&heldScaledPowerXY);
+                    scaledPowerXY.add(0.5);
+                }
+
+                Draw_update(
+                    scaledPowerXY.GetData()+1, 
+                    scaledPowerXY.GetSize()-1
+                );
+                processedChunks++;
+            }
+        }
+    }
+
+    if ((pPower!=NULL) && (holding_state == HOLDING_STATE_STARTED))
+    {
+        heldPower_bins.copy(pPower); //need original
+        heldScaledPowerXY.copy(&scaledPowerXY);                    
+
+        holding_state = HOLDING_STATE_READY;
+        bScaleChanged = true;
+    } 
+
 
     // now we know the size of the UI
 
     // rescale held  data if needed        
-    if (holding_state == HOLDING_STATE_READY)
+    if ((holding_state == HOLDING_STATE_READY) && bScaleChanged)
     {
-        if (bScaleChanged || bHold_pressed)
-        {
             // rescale Y axis to held line is correct
             applyScaleY(&heldPower_bins, axis_y_min, axis_y_max, logY, &heldScaledPowerY);            
             generate_spectrum_lines_from_bin_data(&heldScaledPowerY, &heldPower_lines);
 
             // rescale X axis to waterfall is correct
             pScaleBufferX->Build(&heldScaledPowerY, &heldScaledPowerXY);
-        }
     }
+
     // draw spectrogram
 
     if (draw_frame_fft_bb)
