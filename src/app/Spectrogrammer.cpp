@@ -1,3 +1,4 @@
+#include <string.h>
 #include "Processor.h"
 #include "fft.h"
 #include "pass_through.h"
@@ -17,6 +18,7 @@
 #include "imgui_helpers.h"
 #include "waterfall.h"
 #ifdef ANDROID
+#include <EGL/egl.h>
 #include "../android_native_app_glue.h"
 #include "audio/audio_main.h"
 #include "backends/imgui_impl_android.h"
@@ -96,35 +98,35 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
 void Spectrogrammer_Init(void *window)
 {
 #ifdef ANDROID    
-    android_app * g_App = (android_app *)window;
-    g_App->onInputEvent = handleInputEvent;
+    android_app * pApp = (android_app *)window;
+    pApp->onInputEvent = handleInputEvent;
 #endif
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-
-    /*
-    // Redirect loading/saving of .ini file to our location.
-    // Make sure 'g_IniFilename' persists while we use Dear ImGui.
     ImGuiIO& io = ImGui::GetIO();
-    g_IniFilename = std::string(app->activity->internalDataPath) + "/imgui.ini";
-    io.IniFilename = g_IniFilename.c_str();;
-    */
+
+    // Redirect loading/saving of .ini file to our location.
+    char ini_filename[1024];
+#ifdef ANDROID    
+    strcpy(ini_filename, pApp->activity->internalDataPath);
+#endif    
+    strcpy(ini_filename, "/imgui.ini");
+    io.IniFilename = ini_filename;
+    
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
 #ifdef ANDROID    
-    ImGui_ImplAndroid_Init(g_App->window);
+    ImGui_ImplAndroid_Init(pApp->window);
 #else
     ImGui_ImplGlfw_InitForOpenGL((GLFWwindow*)window, true);
 #endif    
     ImGui_ImplOpenGL3_Init("#version 300 es");
 
 #ifdef ANDROID    
-    ImGuiIO& io = ImGui::GetIO();
     ImFontConfig font_cfg;
     font_cfg.SizePixels = 22.0f * 2;
     io.Fonts->AddFontDefault(&font_cfg);
@@ -176,6 +178,11 @@ void Spectrogrammer_Shutdown()
     Audio_deleteSLEngine();
 #endif    
     Shutdown_waterfall();
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplAndroid_Shutdown();
+    ImGui::DestroyContext();
 }
 
 void draw_log_scale(ImRect frame_bb)
@@ -275,20 +282,23 @@ void generate_debug_signal(sample_buf *pBuf)
 void Spectrogrammer_MainLoopStep()
 {
     ImGuiIO& io = ImGui::GetIO();
-    //if (g_EglDisplay == EGL_NO_DISPLAY)
-    //    return;
+    
+    EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (eglDisplay == EGL_NO_DISPLAY)
+    {
+        return;
+    }
 
     static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
+
 #ifdef ANDROID    
     ImGui_ImplAndroid_NewFrame();
 #else
     ImGui_ImplGlfw_NewFrame();
 #endif    
     ImGui::NewFrame();
-
     ImGuiWindowFlags window_flags = 0;
     window_flags |= ImGuiWindowFlags_NoTitleBar;
     window_flags |= ImGuiWindowFlags_NoMove;
@@ -300,6 +310,7 @@ void Spectrogrammer_MainLoopStep()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0));
 
     ImGui::Checkbox("Play", &play);
+
     ImGui::SameLine();
     
     if (holding_state == HOLDING_STATE_STARTED) 
@@ -326,12 +337,6 @@ void Spectrogrammer_MainLoopStep()
 
     bool bScaleXChanged = false;
     bool bScaleChanged = false;
-
-    float sampleRate;
-    AudioQueue* pFreeQueue = nullptr;
-    AudioQueue* pRecQueue = nullptr;
-    GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
-    ImGui::Text("r: %3i, f: %3i", pRecQueue->size(), pFreeQueue->size());   
 
     bool open = true;
     if (ImGui::BeginPopupModal("Settings", &open, ImGuiWindowFlags_AlwaysAutoResize))
@@ -404,6 +409,7 @@ void Spectrogrammer_MainLoopStep()
         }
     }
 
+    // now we know the size of the waterfall and the plot
     //if we have enough audio queued process the fft, update waterfall
     BufferIODouble *pPower = NULL;
     while (chunker.Process(pProcessor, decay, fraction_overlap))
@@ -414,7 +420,6 @@ void Spectrogrammer_MainLoopStep()
             pPower = bufferAverage.Do(pPower);
             if (pPower!=NULL)
             {           
-                //process(pPower);
                 // values between 0 and 1
                 applyScaleY(pPower, axis_y_min, axis_y_max, logY, &scaledPowerY);
 
@@ -430,6 +435,7 @@ void Spectrogrammer_MainLoopStep()
                     scaledPowerXY.GetData()+1, 
                     scaledPowerXY.GetSize()-1
                 );
+
                 processedChunks++;
             }
         }
@@ -444,18 +450,16 @@ void Spectrogrammer_MainLoopStep()
         bScaleChanged = true;
     } 
 
+    // rescale held data if needed        
 
-    // now we know the size of the UI
-
-    // rescale held  data if needed        
     if ((holding_state == HOLDING_STATE_READY) && bScaleChanged)
     {
-            // rescale Y axis to held line is correct
-            applyScaleY(&heldPower_bins, axis_y_min, axis_y_max, logY, &heldScaledPowerY);            
-            generate_spectrum_lines_from_bin_data(&heldScaledPowerY, &heldPower_lines);
+        // rescale Y axis to held line is correct
+        applyScaleY(&heldPower_bins, axis_y_min, axis_y_max, logY, &heldScaledPowerY);            
+        generate_spectrum_lines_from_bin_data(&heldScaledPowerY, &heldPower_lines);
 
-            // rescale X axis to waterfall is correct
-            pScaleBufferX->Build(&heldScaledPowerY, &heldScaledPowerXY);
+        // rescale X axis to waterfall is correct
+        pScaleBufferX->Build(&heldScaledPowerY, &heldScaledPowerXY);
     }
 
     // draw spectrogram
@@ -498,7 +502,6 @@ void Spectrogrammer_MainLoopStep()
     ImGui::PopStyleVar(); // window padding
 
     ImGui::End();
-
 
     // Rendering
     ImGui::Render();
