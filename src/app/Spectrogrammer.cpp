@@ -99,6 +99,8 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
 
 void Spectrogrammer_Init(void *window)
 {
+    ImGuiIO& io = ImGui::GetIO();
+
 #ifdef ANDROID    
     android_app * pApp = (android_app *)window;
     pApp->onInputEvent = handleInputEvent;
@@ -106,37 +108,7 @@ void Spectrogrammer_Init(void *window)
     pWorkingDirectory = pApp->activity->internalDataPath;
 #endif
 
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-
-    // Redirect loading/saving of .ini file to our location.
-    char ini_filename[1024];
-    strcpy(ini_filename, pWorkingDirectory);
-    strcat(ini_filename, "/imgui.ini");
-    io.IniFilename = ini_filename;
-    
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-
-    // Setup Platform/Renderer backends
 #ifdef ANDROID    
-    ImGui_ImplAndroid_Init(pApp->window);
-#else
-    ImGui_ImplGlfw_InitForOpenGL((GLFWwindow*)window, true);
-#endif    
-    ImGui_ImplOpenGL3_Init("#version 300 es");
-
-#ifdef ANDROID    
-    ImFontConfig font_cfg;
-    font_cfg.SizePixels = 22.0f * 2;
-    io.Fonts->AddFontDefault(&font_cfg);
-
-    // Arbitrary scale-up
-    // FIXME: Put some effort into DPI awareness
-    ImGui::GetStyle().ScaleAllSizes(3.0f * 2);
-
     int audio_buffer_length = 1024;
     Audio_createSLEngine(sample_rate, audio_buffer_length);
     Audio_createAudioRecorder();
@@ -180,11 +152,6 @@ void Spectrogrammer_Shutdown()
     Audio_deleteSLEngine();
 #endif    
     Shutdown_waterfall();
-
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplAndroid_Shutdown();
-    ImGui::DestroyContext();
 }
 
 void draw_log_scale(ImRect frame_bb)
@@ -286,29 +253,6 @@ void Spectrogrammer_MainLoopStep()
 {
     ImGuiIO& io = ImGui::GetIO();
     
-    EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (eglDisplay == EGL_NO_DISPLAY)
-    {
-        return;
-    }
-
-    // Open on-screen (soft) input if requested by Dear ImGui
-    /*
-    static bool WantTextInputLast = false;
-    if (io.WantTextInput && !WantTextInputLast)
-        AndroidDisplayKeyboard(io.WantTextInput);
-    WantTextInputLast = io.WantTextInput;
-    */
-
-    // Start the Dear ImGui frame
-    ImGui_ImplOpenGL3_NewFrame();
-
-#ifdef ANDROID    
-    ImGui_ImplAndroid_NewFrame();
-#else
-    ImGui_ImplGlfw_NewFrame();
-#endif    
-    ImGui::NewFrame();
     ImGuiWindowFlags window_flags = 0;
     window_flags |= ImGuiWindowFlags_NoTitleBar;
     window_flags |= ImGuiWindowFlags_NoMove;
@@ -541,12 +485,4 @@ void Spectrogrammer_MainLoopStep()
     ImGui::PopStyleVar(); // window padding
 
     ImGui::End();
-
-    // Rendering
-    ImGui::Render();
-    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-    static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }

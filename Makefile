@@ -16,7 +16,8 @@ ifeq ($(BUILD_ANDROID),y)
 LABEL?=$(APPNAME)
 APKFILE?=$(APPNAME).apk
 PACKAGENAME?=org.nanoorg.$(APPNAME)
-SRC=$(SRC_DIR)/main_android.c $(SRC_DIR)/android_native_app_glue.c
+#SRC=$(SRC_DIR)/main_android.c $(SRC_DIR)/android_native_app_glue.c
+SRC=$(SRC_DIR)/main_android2.cpp $(SRC_DIR)/android_native_app_glue.c
 SRC+=$(shell find $(SRC_DIR)/audio -name '*.cpp')
 else
 SRC=$(SRC)/main_linux.c
