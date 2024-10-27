@@ -263,6 +263,8 @@ void Spectrogrammer_MainLoopStep()
     ImGui::Begin("imgui window", NULL, window_flags); // create a window
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0));
 
+    ImGui::Dummy(ImVec2(0.0f, 20.0f));
+
     ImGui::Checkbox("Play", &play);
 
     ImGui::SameLine();
