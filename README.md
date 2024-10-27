@@ -6,6 +6,7 @@ Android app that computes a spectrogram
 - 4096 bins (freq resolution of )
 - Linear / Log scales for both axis
 - Hold function
+    - Save/load/delete/rename for comparing 
 - Waterfall
 - Configurable 
     - fft decay
