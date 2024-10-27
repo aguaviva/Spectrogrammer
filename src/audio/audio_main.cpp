@@ -82,9 +82,8 @@ void Audio_createSLEngine(int sampleRate, int framesPerBuf) {
   }
 }
 
-void GetBufferQueues(float *pSampleRate, AudioQueue **pFreeQ, AudioQueue **pRecQ)
+void GetBufferQueues(AudioQueue **pFreeQ, AudioQueue **pRecQ)
 {
-  *pSampleRate = engine.fastPathSampleRate_;
   *pFreeQ = engine.freeBufQueue_;
   *pRecQ = engine.recBufQueue_;
 }

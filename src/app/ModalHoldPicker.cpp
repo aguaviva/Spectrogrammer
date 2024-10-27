@@ -2,8 +2,9 @@
 #include <time.h>
 #include <stdio.h>
 #include "imgui.h"
-#include "HoldPicker.h"
+#include "ModalHoldPicker.h"
 #include "FilePicker.h"
+#include "SpectrumFile.h"
 
 static linked_list *pList = NULL;
 static const char *pSelectedFilename = NULL;
@@ -19,7 +20,7 @@ void RefreshFiles(const char *pWorkingDirectory)
     pList = SortLinkedList(pList);
 }
 
-bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pBuffer)
+bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pBuffer, float *sample_rate, uint32_t *fft_size)
 {
     if (bCanSave==false)
         pSelectedFilename = NULL;
@@ -40,18 +41,7 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
                 strcat(filename, "/");
                 strcat(filename, pTmp->pStr);
 
-                FILE *f = fopen(filename, "rb");
-                if (f != NULL)
-                {
-                    fseek(f, 0, SEEK_END);
-                    int size = ftell(f);
-                    fseek(f, 0, SEEK_SET);         
-                    pBuffer->Resize(size/4);
-                    fread(pBuffer->GetData(), pBuffer->GetSize(), 4, f);
-                    fclose(f);
-
-                    res = true;
-                }
+                res = LoadSpectrum(filename, pBuffer, sample_rate, fft_size);
             }
 
             pTmp = pTmp->pNext;
@@ -81,12 +71,7 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         strcat(filename, "/");
         strftime(&filename[strlen(filename)], 1024, "%Y%m%d-%H%M%S_data.spec", tm_info);
 
-        FILE *f = fopen(filename, "wb");
-        if (f!=NULL)
-        {
-            fwrite(pBuffer->GetData(), pBuffer->GetSize(), 4, f);
-            fclose(f);
-        }
+        res = SaveSpectrum(filename, pBuffer, *sample_rate, *fft_size);
 
         RefreshFiles(pWorkingDirectory);
     }

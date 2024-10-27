@@ -8,8 +8,9 @@
 #include "ChunkerProcessor.h"
 #include "BufferAverage.h"
 #include "Spectrogrammer.h"
-#include "HoldPicker.h"
 #include "colormaps.h"
+#include "ModalSampleRate.h"
+#include "ModalHoldPicker.h"
 #include <GLES3/gl3.h>
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -28,7 +29,7 @@
 #include <GLFW/glfw3.h>
 #include "backends/imgui_impl_glfw.h"
 #endif
-int fft_size = 8*1024;
+uint32_t fft_size = 4*1024;
 float sample_rate = 48000.0f / 2.0;
 float max_freq = -1.0f; 
 float min_freq = -1.0f; 
@@ -77,13 +78,6 @@ BufferIODouble heldScaledPowerXY;
 
 const char *pWorkingDirectory;
 
-#ifdef ANDROID
-static int32_t handleInputEvent(struct android_app* app, AInputEvent* inputEvent)
-{   
-    return ImGui_ImplAndroid_HandleInputEvent(inputEvent);
-}
-#endif
-
 void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble *pLines)
 {
     float *pDataIn = pBins->GetData();
@@ -98,20 +92,17 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
     }
 }
 
-void Spectrogrammer_Init(void *window)
+void Init_FFT(float sample_rate, int fft_size)
 {
-#ifdef ANDROID    
-    android_app * pApp = (android_app *)window;
-    pApp->onInputEvent = handleInputEvent;
-    
-    pWorkingDirectory = pApp->activity->internalDataPath;
-#endif
-
 #ifdef ANDROID    
     int audio_buffer_length = 1024;
     Audio_createSLEngine(sample_rate, audio_buffer_length);
     Audio_createAudioRecorder();
-    Audio_startPlay();
+    Audio_startPlay();                    
+
+    AudioQueue* pFreeQueue = nullptr;
+    AudioQueue* pRecQueue = nullptr;
+    GetBufferQueues(&pFreeQueue, &pRecQueue);
 #else
     pRecQueue = new AudioQueue(32);
     pFreeQueue = new AudioQueue(32);
@@ -122,53 +113,46 @@ void Spectrogrammer_Init(void *window)
         buffers[i].size_ = 2;
         pFreeQueue->push(&buffers[i]);
     }
-
 #endif    
-
-    float sampleRate;
-    AudioQueue* pFreeQueue = nullptr;
-    AudioQueue* pRecQueue = nullptr;
-    GetBufferQueues(&sampleRate, &pFreeQueue, &pRecQueue);
-
-    chunker.SetQueues(pRecQueue, pFreeQueue);
-    chunker.begin();
 
     pProcessor = new myFFT();
     pProcessor->init(fft_size, sample_rate);
-
     min_freq = pProcessor->bin2Freq(1);
     max_freq = pProcessor->bin2Freq(pProcessor->getBinCount()-1);
+
+    chunker.SetQueues(pRecQueue, pFreeQueue);
+    chunker.begin();
+}
+
+void Shutdown_FFT()
+{
+    chunker.end();
+    delete pProcessor;
+
+#ifdef ANDROID    
+    Audio_deleteAudioRecorder();
+    Audio_deleteSLEngine();
+#endif    
+}
+
+void Spectrogrammer_Init(void *window)
+{
+#ifdef ANDROID    
+    android_app * pApp = (android_app *)window;
+    pWorkingDirectory = pApp->activity->internalDataPath;
+#endif
+
+    Init_FFT(sample_rate, fft_size);
 
     bufferAverage.setAverageCount(averaging);
 }
 
 void Spectrogrammer_Shutdown()
 {
-    chunker.end();
+    Shutdown_FFT();
 
-#ifdef ANDROID    
-    Audio_deleteAudioRecorder();
-    Audio_deleteSLEngine();
-#endif    
     Shutdown_waterfall();
 }
-
-void generate_debug_signal(sample_buf *pBuf)
-{
-     int t = 0;
-    int bufSize = AU_LEN(pBuf->cap_);
-    int16_t *buff = (int16_t *)(pBuf->buf_);        
-    for (int n = 0; n < bufSize; n++)
-    {                    
-        //buff[n] = n%5;
-        buff[n] = 512.0f + 512.0f*sin(2.0f*M_PI*1000.0f*((float)t/(float)sample_rate));
-        t++;
-        if (t>sample_rate)
-            t = 0;
-        //buff[n] = n / (float(bufSize)-1);
-    }
-}
-
 
 void Spectrogrammer_MainLoopStep()
 {
@@ -206,8 +190,10 @@ void Spectrogrammer_MainLoopStep()
         if (bHoldInProgress) 
             ImGui::BeginDisabled();
 
-        if (HoldPicker(pWorkingDirectory, holding_state == HOLDING_STATE_READY, &heldPower_bins))
+        if (HoldPicker(pWorkingDirectory, holding_state == HOLDING_STATE_READY, &heldPower_bins, &sample_rate, &fft_size))
         {
+            Shutdown_FFT();
+            Init_FFT(sample_rate, fft_size);
             bScaleChanged = true;
             holding_state = HOLDING_STATE_READY;
         }
@@ -255,22 +241,20 @@ void Spectrogrammer_MainLoopStep()
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
         if (ImGui::SliderInt("averaging", &averaging, 1,500))
             bufferAverage.setAverageCount(averaging);
-
+        
+        ImGui::Spacing();
         if (ImGui::Button("Close"))
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("Audio"))
-        ImGui::OpenPopup("Audio settings");
 
-    if (ImGui::BeginPopupModal("Audio settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ModalSampleRateAndFFT(&sample_rate, &fft_size))
     {
-
-        if (ImGui::Button("Close"))
-            ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
+        Shutdown_FFT();
+        Init_FFT(sample_rate, fft_size);
+        bScaleXChanged = true;
     }
 
     if (bScaleXChanged || pScaleBufferX==NULL)
