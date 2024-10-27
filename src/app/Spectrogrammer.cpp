@@ -2,9 +2,10 @@
 #include "Processor.h"
 #include "fft.h"
 #include "pass_through.h"
-#include "ChunkerProcessor.h"
+#include "ScaleUI.h"
 #include "ScaleBufferX.h"
 #include "ScaleBufferY.h"
+#include "ChunkerProcessor.h"
 #include "BufferAverage.h"
 #include "Spectrogrammer.h"
 #include "HoldPicker.h"
@@ -99,8 +100,6 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
 
 void Spectrogrammer_Init(void *window)
 {
-    ImGuiIO& io = ImGui::GetIO();
-
 #ifdef ANDROID    
     android_app * pApp = (android_app *)window;
     pApp->onInputEvent = handleInputEvent;
@@ -154,84 +153,6 @@ void Spectrogrammer_Shutdown()
     Shutdown_waterfall();
 }
 
-void draw_log_scale(ImRect frame_bb)
-{
-    ImGuiWindow* window = ImGui::GetCurrentWindow();
-    for (int e=1;e<5;e++) // number of zeroes
-    {
-        for (int i=0;i<10;i++)
-        {
-            float freq = (i + 1) * pow(10.0f, e);
-            float t = pScaleBufferX->FreqToX(freq);
-            float x = lerp(t, frame_bb.Min.x, frame_bb.Max.x);
-
-            if (x < frame_bb.Min.x)
-                continue;
-            if (x > frame_bb.Max.x)
-                break;
-
-            if (i==0)
-            {
-                char str[255];
-                sprintf(str, "%i", (int)freq); 
-                float textWidth = ImGui::CalcTextSize(str).x;
-                // append HZ to last
-                if (e==4)
-                {
-                    strcat(str, " Hz");
-                }
-                window->DrawList->AddText(
-                    ImVec2(x - textWidth/2, frame_bb.Min.y + 400), 
-                    ImGui::GetColorU32(ImGuiCol_Text), 
-                    str
-                );
-            }
-
-            window->DrawList->AddLine(
-                ImVec2(x, frame_bb.Min.y),
-                ImVec2(x, frame_bb.Max.y),
-                (i==0) ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(ImGuiCol_TextDisabled));
-        }
-
-    }
-}
-
-void draw_lin_scale(ImRect frame_bb)
-{
-    ImGuiWindow* window = ImGui::GetCurrentWindow();
-    for (int i=0;i<3;i++)
-    {
-        for (int m=0;m<10;m++)
-        {
-            float freq = (m * 1000) + (i * 10000);
-            float t = pScaleBufferX->FreqToX(freq);
-            float x = lerp(t, frame_bb.Min.x, frame_bb.Max.x);
-
-            if (x < frame_bb.Min.x)
-                continue;
-            if (x > frame_bb.Max.x)
-                break;
-
-            if (m == 0)
-            {
-                char str[255];
-                sprintf(str, "%i", (int)freq); 
-                float textWidth = ImGui::CalcTextSize(str).x;
-                window->DrawList->AddText(
-                    ImVec2(x - textWidth/2, frame_bb.Min.y + 400), 
-                    ImGui::GetColorU32(ImGuiCol_Text), 
-                    str
-                );
-            }
-
-            window->DrawList->AddLine(
-                ImVec2(x, frame_bb.Min.y),
-                ImVec2(x, frame_bb.Max.y),
-                (m==0) ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(ImGuiCol_TextDisabled));
-        }
-    }
-}
-
 void generate_debug_signal(sample_buf *pBuf)
 {
      int t = 0;
@@ -251,8 +172,6 @@ void generate_debug_signal(sample_buf *pBuf)
 
 void Spectrogrammer_MainLoopStep()
 {
-    ImGuiIO& io = ImGui::GetIO();
-    
     ImGuiWindowFlags window_flags = 0;
     window_flags |= ImGuiWindowFlags_NoTitleBar;
     window_flags |= ImGuiWindowFlags_NoMove;
@@ -336,6 +255,18 @@ void Spectrogrammer_MainLoopStep()
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
         if (ImGui::SliderInt("averaging", &averaging, 1,500))
             bufferAverage.setAverageCount(averaging);
+
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Audio"))
+        ImGui::OpenPopup("Audio settings");
+
+    if (ImGui::BeginPopupModal("Audio settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
 
         if (ImGui::Button("Close"))
             ImGui::CloseCurrentPopup();
@@ -467,9 +398,9 @@ void Spectrogrammer_MainLoopStep()
         }
         
         if (logX)
-            draw_log_scale(frame_fft_bb);   
+            draw_log_scale(frame_fft_bb, pScaleBufferX);   
         else
-            draw_lin_scale(frame_fft_bb);   
+            draw_lin_scale(frame_fft_bb, pScaleBufferX);   
     }
 
     // Draw waterfall

@@ -6,15 +6,8 @@
 #include "kiss_fftr.h"
 #include "auformat.h"
 
-float hanning(int i, int window_size)
-{
-    return .50f - .50f * cos((2.0f * M_PI * (float)i) / (float)(window_size - 1));
-}
-
-float hamming(int i, int window_size)
-{
-    return .54f - .46f * cos((2.0f * M_PI * (float)i) / (float)(window_size - 1));
-}
+float hanning(int i, int window_size);
+float hamming(int i, int window_size);
 
 class myFFT : public Processor
 {
@@ -102,14 +95,6 @@ public:
 
             totalPower += power;
         }
-
-        /*
-        for (int i = 0; i < getBinCount(); i++)
-        {
-            m_rout[i] = hamming(i, getBinCount());
-        }
-        m_rout[0] = 1.0f;
-        */
     }
 
     float bin2Freq(int bin) const
