@@ -7,6 +7,7 @@
 #include "ScaleBufferY.h"
 #include "BufferAverage.h"
 #include "Spectrogrammer.h"
+#include "HoldPicker.h"
 #include "colormaps.h"
 #include <GLES3/gl3.h>
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
@@ -26,8 +27,8 @@
 #include <GLFW/glfw3.h>
 #include "backends/imgui_impl_glfw.h"
 #endif
-int fft_size = 4*1024;
-float sample_rate = 48000.0f;
+int fft_size = 8*1024;
+float sample_rate = 48000.0f / 2.0;
 float max_freq = -1.0f; 
 float min_freq = -1.0f; 
 float bin_width = -1.0f;
@@ -44,7 +45,7 @@ float decay = .5f;
 float volume = 1;
 bool logX=true, logY=true;
 bool play = true;
-bool hold_spectrum = false;
+bool hold = false;
 float axis_y_min = -120;
 float axis_y_max = -20;
 
@@ -62,6 +63,7 @@ Processor *pProcessor = NULL;
 ScaleBufferBase *pScaleBufferX = nullptr;
 ChunkerProcessor chunker;
 
+BufferIODouble downsampled;
 BufferIODouble scaledPowerY;
 BufferIODouble scaledPowerXY;
 BufferAverage bufferAverage;
@@ -72,7 +74,7 @@ BufferIODouble heldPower_bins;
 BufferIODouble heldScaledPowerY;
 BufferIODouble heldScaledPowerXY;
 
-sample_buf * buffers;
+const char *pWorkingDirectory;
 
 #ifdef ANDROID
 static int32_t handleInputEvent(struct android_app* app, AInputEvent* inputEvent)
@@ -100,6 +102,8 @@ void Spectrogrammer_Init(void *window)
 #ifdef ANDROID    
     android_app * pApp = (android_app *)window;
     pApp->onInputEvent = handleInputEvent;
+    
+    pWorkingDirectory = pApp->activity->internalDataPath;
 #endif
 
     // Setup Dear ImGui context
@@ -109,10 +113,8 @@ void Spectrogrammer_Init(void *window)
 
     // Redirect loading/saving of .ini file to our location.
     char ini_filename[1024];
-#ifdef ANDROID    
-    strcpy(ini_filename, pApp->activity->internalDataPath);
-#endif    
-    strcpy(ini_filename, "/imgui.ini");
+    strcpy(ini_filename, pWorkingDirectory);
+    strcat(ini_filename, "/imgui.ini");
     io.IniFilename = ini_filename;
     
     // Setup Dear ImGui style
@@ -249,7 +251,7 @@ void draw_lin_scale(ImRect frame_bb)
                 sprintf(str, "%i", (int)freq); 
                 float textWidth = ImGui::CalcTextSize(str).x;
                 window->DrawList->AddText(
-                    ImVec2(x - textWidth/2, frame_bb.Min.y + 150), 
+                    ImVec2(x - textWidth/2, frame_bb.Min.y + 400), 
                     ImGui::GetColorU32(ImGuiCol_Text), 
                     str
                 );
@@ -278,6 +280,7 @@ void generate_debug_signal(sample_buf *pBuf)
         //buff[n] = n / (float(bufSize)-1);
     }
 }
+
 
 void Spectrogrammer_MainLoopStep()
 {
@@ -312,34 +315,62 @@ void Spectrogrammer_MainLoopStep()
     ImGui::Checkbox("Play", &play);
 
     ImGui::SameLine();
-    
-    if (holding_state == HOLDING_STATE_STARTED) 
-        ImGui::BeginDisabled();
 
-    bool bHold_pressed = ImGui::Checkbox("Hold", &hold_spectrum);
+    bool bScaleChanged = false;
 
-    if (holding_state == HOLDING_STATE_STARTED) 
-        ImGui::EndDisabled();
 
-    if (bHold_pressed)
+    if (ImGui::Button("Hold"))
     {
-        if (hold_spectrum)
-            holding_state = HOLDING_STATE_STARTED;
-        else
-            holding_state = HOLDING_STATE_NO_HOLD;
-    }   
+        ImGui::OpenPopup("Hold Menu");
+        
+        RefreshFiles(pWorkingDirectory);
+    }
 
-    SetColorMap(hold_spectrum?1:0);
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(1000, -1));
+    if (ImGui::BeginPopupModal("Hold Menu", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        bool bHoldInProgress = (holding_state == HOLDING_STATE_STARTED);
+        if (bHoldInProgress) 
+            ImGui::BeginDisabled();
+
+        if (HoldPicker(pWorkingDirectory, holding_state == HOLDING_STATE_READY, &heldPower_bins))
+        {
+            bScaleChanged = true;
+            holding_state = HOLDING_STATE_READY;
+        }
+
+        if (ImGui::Button("Holdy"))
+        {
+            SetColorMap(1);
+            holding_state = HOLDING_STATE_STARTED;
+        }   
+
+        ImGui::SameLine();
+        if (ImGui::Button("Clear"))
+        {
+            SetColorMap(0);
+            holding_state = HOLDING_STATE_NO_HOLD;
+        }   
+
+        if (bHoldInProgress) 
+            ImGui::EndDisabled();
+
+
+        ImGui::Separator();
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 
     ImGui::SameLine();
     if (ImGui::Button("Menu"))
         ImGui::OpenPopup("Settings");
 
     bool bScaleXChanged = false;
-    bool bScaleChanged = false;
 
-    bool open = true;
-    if (ImGui::BeginPopupModal("Settings", &open, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
         bScaleXChanged = ImGui::Checkbox("Log x", &logX);
         bScaleChanged |= bScaleXChanged;
@@ -417,6 +448,7 @@ void Spectrogrammer_MainLoopStep()
         if (play)
         {
             pPower = pProcessor->getBufferIO();  
+
             pPower = bufferAverage.Do(pPower);
             if (pPower!=NULL)
             {           

@@ -1,0 +1,135 @@
+#include <string.h>
+#include <time.h>
+#include <stdio.h>
+#include "imgui.h"
+#include "HoldPicker.h"
+#include "FilePicker.h"
+
+static linked_list *pList = NULL;
+static const char *pSelectedFilename = NULL;
+
+void RefreshFiles(const char *pWorkingDirectory)
+{
+    pSelectedFilename = NULL;
+    if (pList!=NULL)
+    {
+        FreeLinkedList(pList);
+    }
+    pList = GetFilesInFolder(pWorkingDirectory);
+    pList = SortLinkedList(pList);
+}
+
+bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pBuffer)
+{
+    if (bCanSave==false)
+        pSelectedFilename = NULL;
+
+
+    bool res = false;
+    if (ImGui::BeginListBox("##empty", ImVec2(-1, 5 * ImGui::GetTextLineHeightWithSpacing())))
+    {
+        linked_list *pTmp = pList;
+        while(pTmp != NULL)
+        {
+            const bool is_selected = (pSelectedFilename == pTmp->pStr);
+            if (ImGui::Selectable(pTmp->pStr, is_selected))
+            {
+                pSelectedFilename = pTmp->pStr;
+
+                char filename[1024];
+                strcpy(filename, pWorkingDirectory);
+                strcat(filename, "/");
+                strcat(filename, pTmp->pStr);
+
+                FILE *f = fopen(filename, "rb");
+                if (f != NULL)
+                {
+                    fseek(f, 0, SEEK_END);
+                    int size = ftell(f);
+                    fseek(f, 0, SEEK_SET);         
+                    pBuffer->Resize(size/4);
+                    fread(pBuffer->GetData(), pBuffer->GetSize(), 4, f);
+                    fclose(f);
+
+                    res = true;
+                }
+            }
+
+            pTmp = pTmp->pNext;
+        }
+        ImGui::EndListBox();
+    }
+
+    if (pSelectedFilename != NULL)
+        bCanSave = false;
+
+    if (bCanSave == false) 
+        ImGui::BeginDisabled();
+
+    if ( ImGui::Button("Save"))
+    {
+        time_t timer;
+        struct tm* tm_info;
+        timer = time(NULL);
+        tm_info = localtime(&timer);
+
+        char filename[1024];
+        strcpy(filename, pWorkingDirectory);
+        strcat(filename, "/");
+        strftime(&filename[strlen(filename)], 1024, "%Y%m%d-%H%M%S_data.spec", tm_info);
+
+        FILE *f = fopen(filename, "wb");
+        if (f!=NULL)
+        {
+            fwrite(pBuffer->GetData(), pBuffer->GetSize(), 4, f);
+            fclose(f);
+        }
+
+        RefreshFiles(pWorkingDirectory);
+    }
+
+    if (bCanSave == false) 
+        ImGui::EndDisabled();
+
+    bool bDisableDelete = (pSelectedFilename == NULL);
+
+    if (bDisableDelete) 
+        ImGui::BeginDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Delete"))
+    {
+        ImGui::OpenPopup("Delete?");
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+    if (ImGui::BeginPopupModal("Delete?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text("Are you sure?");
+        ImGui::Separator();
+        if (ImGui::Button("OK", ImVec2(120, 0))) 
+        { 
+            char filename[1024];
+            strcpy(filename, pWorkingDirectory);
+            strcat(filename, "/");
+            strcat(filename, pSelectedFilename);                    
+            remove(filename);
+
+            RefreshFiles(pWorkingDirectory);
+
+            ImGui::CloseCurrentPopup(); 
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+        ImGui::EndPopup();
+    }
+
+    if (bDisableDelete) 
+        ImGui::EndDisabled();
+
+    return res;
+}
+

@@ -1,6 +1,7 @@
 #ifndef BUFFERIO_H
 #define BUFFERIO_H
 #include <cstring>
+#include <stdlib.h>
 #include <assert.h>
 
 template <class type>
