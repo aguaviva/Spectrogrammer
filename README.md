@@ -3,15 +3,18 @@
 Android app that computes a spectrogram
 
 ## Features
-- 4096 bins (freq resolution of )
-- Linear / Log scales for both axis
-- Hold function
-    - Save/load/delete/rename for comparing 
-- Waterfall
-- Configurable 
+- Frequency analysis
+    - 4096 FFT 
     - fft decay
-    - fft overlap
-
+    - fft average
+- Visualization    
+   - Spectrogram
+   - Waterfall
+      - In regular mode uses a magma heatmap
+      - When hold is active a binary heatmap is used to shows above/below values
+   - Linear / Log scales for both axis
+   - Hold function to capture refrence levels
+      - Save/load/delete/rename for comparing 
 
 ## Screenshot
 <img src="Screenshot.png" alt="Screenshot" width="200"/>
