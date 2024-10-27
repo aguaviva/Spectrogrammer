@@ -24,7 +24,6 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
     if (bCanSave==false)
         pSelectedFilename = NULL;
 
-
     bool res = false;
     if (ImGui::BeginListBox("##empty", ImVec2(-1, 5 * ImGui::GetTextLineHeightWithSpacing())))
     {
@@ -60,10 +59,14 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         ImGui::EndListBox();
     }
 
-    if (pSelectedFilename != NULL)
-        bCanSave = false;
+    // Save file
 
-    if (bCanSave == false) 
+    bool bDisableSave = false;
+
+    if ((pSelectedFilename != NULL) || (bCanSave==false))
+        bDisableSave = true;
+
+    if (bDisableSave) 
         ImGui::BeginDisabled();
 
     if ( ImGui::Button("Save"))
@@ -88,13 +91,42 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         RefreshFiles(pWorkingDirectory);
     }
 
-    if (bCanSave == false) 
+    if (bDisableSave) 
         ImGui::EndDisabled();
 
-    bool bDisableDelete = (pSelectedFilename == NULL);
+    // Delete selectedfile
 
-    if (bDisableDelete) 
+    bool bDisableFileOperations = (pSelectedFilename == NULL);
+
+    if (bDisableFileOperations) 
         ImGui::BeginDisabled();
+
+    ImGui::SameLine();
+    static char newFilename[1024];
+    if (ImGui::Button("Rename"))
+    {
+        ImGui::OpenPopup("Rename");
+        strcpy(newFilename, pSelectedFilename);
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopupModal("Rename", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text("NewName");
+        ImGui::InputText("###Name", newFilename, 1024, ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::Separator();
+        if (ImGui::Button("OK", ImVec2(120, 0))) 
+        { 
+            rename(pSelectedFilename, newFilename);
+            RefreshFiles(pWorkingDirectory);
+            ImGui::CloseCurrentPopup(); 
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+        ImGui::EndPopup();
+    }
 
     ImGui::SameLine();
     if (ImGui::Button("Delete"))
@@ -102,9 +134,8 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         ImGui::OpenPopup("Delete?");
     }
 
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
     if (ImGui::BeginPopupModal("Delete?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::Text("Are you sure?");
@@ -127,7 +158,7 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         ImGui::EndPopup();
     }
 
-    if (bDisableDelete) 
+    if (bDisableFileOperations) 
         ImGui::EndDisabled();
 
     return res;
