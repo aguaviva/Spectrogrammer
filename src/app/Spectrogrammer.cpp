@@ -92,7 +92,7 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
     }
 }
 
-void Init_FFT(float sample_rate, int fft_size)
+void FFT_Init(float sample_rate, int fft_size)
 {
 #ifdef ANDROID    
     int audio_buffer_length = 1024;
@@ -124,7 +124,7 @@ void Init_FFT(float sample_rate, int fft_size)
     chunker.begin();
 }
 
-void Shutdown_FFT()
+void FFT_Shutdown()
 {
     chunker.end();
     delete pProcessor;
@@ -142,14 +142,14 @@ void Spectrogrammer_Init(void *window)
     pWorkingDirectory = pApp->activity->internalDataPath;
 #endif
 
-    Init_FFT(sample_rate, fft_size);
+    FFT_Init(sample_rate, fft_size);
 
     bufferAverage.setAverageCount(averaging);
 }
 
 void Spectrogrammer_Shutdown()
 {
-    Shutdown_FFT();
+    FFT_Shutdown();
 
     Shutdown_waterfall();
 }
@@ -192,8 +192,8 @@ void Spectrogrammer_MainLoopStep()
 
         if (HoldPicker(pWorkingDirectory, holding_state == HOLDING_STATE_READY, &heldPower_bins, &sample_rate, &fft_size))
         {
-            Shutdown_FFT();
-            Init_FFT(sample_rate, fft_size);
+            FFT_Shutdown();
+            FFT_Init(sample_rate, fft_size);
             bScaleChanged = true;
             holding_state = HOLDING_STATE_READY;
         }
@@ -252,8 +252,8 @@ void Spectrogrammer_MainLoopStep()
 
     if (ModalSampleRateAndFFT(&sample_rate, &fft_size))
     {
-        Shutdown_FFT();
-        Init_FFT(sample_rate, fft_size);
+        FFT_Shutdown();
+        FFT_Init(sample_rate, fft_size);
         bScaleXChanged = true;
     }
 
