@@ -31,8 +31,7 @@ static std::string          g_IniFilename = "";
 static void Init(struct android_app* app);
 static void Shutdown();
 static void MainLoopStep();
-static int ShowSoftKeyboardInput();
-static int PollUnicodeChars();
+static void AndroidDisplayKeyboard(int pShow);
 static int GetAssetData(const char* filename, void** out_data);
 
 // Main code
@@ -174,17 +173,12 @@ void MainLoopStep()
     if (g_EglDisplay == EGL_NO_DISPLAY)
         return;
 
-    /*
-    // Poll Unicode characters via JNI
-    // FIXME: do not call this every frame because of JNI overhead
-    //PollUnicodeChars();
-
     // Open on-screen (soft) input if requested by Dear ImGui
-    //static bool WantTextInputLast = false;
-    //if (io.WantTextInput && !WantTextInputLast)
-    //    ShowSoftKeyboardInput();
-    //WantTextInputLast = io.WantTextInput;
-*/
+    static bool WantTextInputLast = false;
+    if (io.WantTextInput && !WantTextInputLast)
+        AndroidDisplayKeyboard(io.WantTextInput?1:0);
+    WantTextInputLast = io.WantTextInput;
+
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplAndroid_NewFrame();
@@ -238,74 +232,74 @@ void Shutdown()
 
 // Helper functions
 
-// Unfortunately, there is no way to show the on-screen input from native code.
-// Therefore, we call ShowSoftKeyboardInput() of the main activity implemented in MainActivity.kt via JNI.
-static int ShowSoftKeyboardInput()
+#ifdef __cplusplus
+#define SETUP_FOR_JAVA_CALL \
+	JNIEnv * env = 0; \
+	JNIEnv ** envptr = &env; \
+	JavaVM * jniiptr = g_App->activity->vm; \
+	jniiptr->AttachCurrentThread( (JNIEnv**)&env, 0 ); \
+	env = (*envptr);
+#define ENVCALL
+#define JAVA_CALL_DETACH 	jniiptr->DetachCurrentThread();
+#else
+#define SETUP_FOR_JAVA_CALL \
+	const struct JNINativeInterface * env = (struct JNINativeInterface*)g_App->activity->env; \
+	const struct JNINativeInterface ** envptr = &env; \
+	const struct JNIInvokeInterface ** jniiptr = gag_Apppp->activity->vm; \
+	const struct JNIInvokeInterface * jnii = *jniiptr; \
+	jnii->AttachCurrentThread( jniiptr, &envptr, NULL); \
+	env = (*envptr);
+#define ENVCALL envptr,
+#define JAVA_CALL_DETACH       	jnii->DetachCurrentThread( jniiptr );
+#endif
+
+void AndroidDisplayKeyboard(int pShow)
 {
-    JavaVM* java_vm = g_App->activity->vm;
-    JNIEnv* java_env = nullptr;
+	//Based on https://stackoverflow.com/questions/5864790/how-to-show-the-soft-keyboard-on-native-activity
+	jint lFlags = 0;
+	SETUP_FOR_JAVA_CALL
 
-    jint jni_return = java_vm->GetEnv((void**)&java_env, JNI_VERSION_1_6);
-    if (jni_return == JNI_ERR)
-        return -1;
+	jclass activityClass = env->FindClass( ENVCALL "android/app/NativeActivity");
 
-    jni_return = java_vm->AttachCurrentThread(&java_env, nullptr);
-    if (jni_return != JNI_OK)
-        return -2;
+	// Retrieves NativeActivity.
+	jobject lNativeActivity = g_App->activity->clazz;
 
-    jclass native_activity_clazz = java_env->GetObjectClass(g_App->activity->clazz);
-    if (native_activity_clazz == nullptr)
-        return -3;
 
-    jmethodID method_id = java_env->GetMethodID(native_activity_clazz, "showSoftInput", "()V");
-    if (method_id == nullptr)
-        return -4;
+	// Retrieves Context.INPUT_METHOD_SERVICE.
+	jclass ClassContext = env->FindClass( ENVCALL "android/content/Context");
+	jfieldID FieldINPUT_METHOD_SERVICE = env->GetStaticFieldID( ENVCALL ClassContext, "INPUT_METHOD_SERVICE", "Ljava/lang/String;" );
+	jobject INPUT_METHOD_SERVICE = env->GetStaticObjectField( ENVCALL ClassContext, FieldINPUT_METHOD_SERVICE );
 
-    java_env->CallVoidMethod(g_App->activity->clazz, method_id);
+	// Runs getSystemService(Context.INPUT_METHOD_SERVICE).
+	jclass ClassInputMethodManager = env->FindClass( ENVCALL "android/view/inputmethod/InputMethodManager" );
+	jmethodID MethodGetSystemService = env->GetMethodID( ENVCALL activityClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+	jobject lInputMethodManager = env->CallObjectMethod( ENVCALL lNativeActivity, MethodGetSystemService, INPUT_METHOD_SERVICE);
 
-    jni_return = java_vm->DetachCurrentThread();
-    if (jni_return != JNI_OK)
-        return -5;
+	// Runs getWindow().getDecorView().
+	jmethodID MethodGetWindow = env->GetMethodID( ENVCALL activityClass, "getWindow", "()Landroid/view/Window;");
+	jobject lWindow = env->CallObjectMethod( ENVCALL lNativeActivity, MethodGetWindow);
+	jclass ClassWindow = env->FindClass( ENVCALL "android/view/Window");
+	jmethodID MethodGetDecorView = env->GetMethodID( ENVCALL ClassWindow, "getDecorView", "()Landroid/view/View;");
+	jobject lDecorView = env->CallObjectMethod( ENVCALL lWindow, MethodGetDecorView);
 
-    return 0;
+	if (pShow) {
+		// Runs lInputMethodManager.showSoftInput(...).
+		jmethodID MethodShowSoftInput = env->GetMethodID( ENVCALL ClassInputMethodManager, "showSoftInput", "(Landroid/view/View;I)Z");
+		/*jboolean lResult = */env->CallBooleanMethod( ENVCALL lInputMethodManager, MethodShowSoftInput, lDecorView, lFlags);
+	} else {
+		// Runs lWindow.getViewToken()
+		jclass ClassView = env->FindClass( ENVCALL "android/view/View");
+		jmethodID MethodGetWindowToken = env->GetMethodID( ENVCALL ClassView, "getWindowToken", "()Landroid/os/IBinder;");
+		jobject lBinder = env->CallObjectMethod( ENVCALL lDecorView, MethodGetWindowToken);
+
+		// lInputMethodManager.hideSoftInput(...).
+		jmethodID MethodHideSoftInput = env->GetMethodID( ENVCALL ClassInputMethodManager, "hideSoftInputFromWindow", "(Landroid/os/IBinder;I)Z");
+		/*jboolean lRes = */env->CallBooleanMethod( ENVCALL lInputMethodManager, MethodHideSoftInput, lBinder, lFlags);
+	}
+
+	JAVA_CALL_DETACH
 }
 
-// Unfortunately, the native KeyEvent implementation has no getUnicodeChar() function.
-// Therefore, we implement the processing of KeyEvents in MainActivity.kt and poll
-// the resulting Unicode characters here via JNI and send them to Dear ImGui.
-static int PollUnicodeChars()
-{
-    JavaVM* java_vm = g_App->activity->vm;
-    JNIEnv* java_env = nullptr;
-
-    jint jni_return = java_vm->GetEnv((void**)&java_env, JNI_VERSION_1_6);
-    if (jni_return == JNI_ERR)
-        return -1;
-
-    jni_return = java_vm->AttachCurrentThread(&java_env, nullptr);
-    if (jni_return != JNI_OK)
-        return -2;
-
-    jclass native_activity_clazz = java_env->GetObjectClass(g_App->activity->clazz);
-    if (native_activity_clazz == nullptr)
-        return -3;
-
-    jmethodID method_id = java_env->GetMethodID(native_activity_clazz, "pollUnicodeChar", "()I");
-    if (method_id == nullptr)
-        return -4;
-
-    // Send the actual characters to Dear ImGui
-    ImGuiIO& io = ImGui::GetIO();
-    jint unicode_character;
-    while ((unicode_character = java_env->CallIntMethod(g_App->activity->clazz, method_id)) != 0)
-        io.AddInputCharacter(unicode_character);
-
-    jni_return = java_vm->DetachCurrentThread();
-    if (jni_return != JNI_OK)
-        return -5;
-
-    return 0;
-}
 
 // Helper to retrieve data placed into the assets/ directory (android/app/src/main/assets)
 static int GetAssetData(const char* filename, void** outData)

@@ -271,7 +271,6 @@ void Spectrogrammer_MainLoopStep()
 
     bool bScaleChanged = false;
 
-
     if (ImGui::Button("Hold"))
     {
         ImGui::OpenPopup("Hold Menu");
