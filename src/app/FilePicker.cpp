@@ -32,7 +32,7 @@ linked_list *GetFilesInFolder(const char *pDirectory)
     return head;
 }
 
-int LinkedListSize(linked_list *node)
+int LinkedListSize(const linked_list *node)
 {
     int i=0;
     while(node!=NULL)
@@ -43,10 +43,11 @@ int LinkedListSize(linked_list *node)
     return i;
 }
 
-
-int comp (const void *elem1, const void *elem2) 
+int sortstring( const void *str1, const void *str2 )
 {
-    return strcmp(((const linked_list *)elem1)->pStr, ((const linked_list *)elem2)->pStr);
+    const char **pp1 = (const char **)str1;
+    const char **pp2 = (const char **)str2;
+    return strcmp(*pp1, *pp2);
 }
 
 linked_list *SortLinkedList(linked_list *node)
@@ -55,24 +56,24 @@ linked_list *SortLinkedList(linked_list *node)
     if (count<=1)
         return node;
 
-    linked_list **array = (linked_list **)malloc(sizeof(linked_list **) * count);
+    char **array = (char **)malloc(sizeof(char **) * count);
+
+    linked_list *head = node;
 
     for(int i=0; i<count; i++)
     {
-        array[i] = node;
+        array[i] = node->pStr;
         node = node->pNext;
     }
 
-    qsort(array, count, sizeof(linked_list **), comp);
+    qsort(array, count, sizeof(char *), sortstring);
 
-    for(int i=0; i<count-1; i++)
+    node = head;
+    for(int i=0; i<count; i++)
     {
-        array[i]->pNext = array[i+1];
+        node->pStr = array[i];
+        node = node->pNext;
     }
-    array[count-1]->pNext = NULL;
-
-    linked_list *head = array[0];
-
     free(array);
 
     return head;
@@ -89,3 +90,25 @@ void FreeLinkedList(linked_list *node)
         node = next;
     }
 }
+
+#ifdef TEST
+#include <cstdio>
+
+void Print(linked_list *node)
+{
+    while(node!=NULL)
+    {
+        printf("%s\n", node->pStr);
+        node = node->pNext;
+    }
+}
+
+int main()
+{
+    linked_list *files = GetFilesInFolder(".");
+    files = SortLinkedList(files);   
+    Print(files);
+    FreeLinkedList(files);
+    return 0;
+}
+#endif
