@@ -102,7 +102,7 @@ void FFT_Init(float sample_rate, int fft_size)
 
     AudioQueue* pFreeQueue = nullptr;
     AudioQueue* pRecQueue = nullptr;
-    GetBufferQueues(&pFreeQueue, &pRecQueue);
+    Audio_getBufferQueues(&pFreeQueue, &pRecQueue);
 #else
     pRecQueue = new AudioQueue(32);
     pFreeQueue = new AudioQueue(32);

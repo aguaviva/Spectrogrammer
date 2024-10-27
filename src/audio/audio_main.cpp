@@ -82,13 +82,13 @@ void Audio_createSLEngine(int sampleRate, int framesPerBuf) {
   }
 }
 
-void GetBufferQueues(AudioQueue **pFreeQ, AudioQueue **pRecQ)
+void Audio_getBufferQueues(AudioQueue **pFreeQ, AudioQueue **pRecQ)
 {
   *pFreeQ = engine.freeBufQueue_;
   *pRecQ = engine.recBufQueue_;
 }
 
-void SetRecorderCallback(ENGINE_CALLBACK callback)
+void Audio_setRecorderCallback(ENGINE_CALLBACK callback)
 {
     engine.recorder_->RegisterCallback(callback, (void *)&engine);
 }
