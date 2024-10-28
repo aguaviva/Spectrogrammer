@@ -8,6 +8,8 @@ bool LoadSpectrum(const char *filename, BufferIODouble *pBuffer, float *sample_r
     {
         uint32_t version = 0;
         fread(&version, 1, sizeof(uint32_t), f);
+        if (version!=1)
+            return false;
 
         fread(sample_rate, 1, sizeof(float), f);
         fread(fft_size, 1, sizeof(uint32_t), f);
@@ -16,7 +18,7 @@ bool LoadSpectrum(const char *filename, BufferIODouble *pBuffer, float *sample_r
         fread(&size, 1, sizeof(uint32_t), f);
 
         pBuffer->Resize(size);
-        fwrite(pBuffer->GetData(), size, sizeof(float), f);
+        fread(pBuffer->GetData(), size, sizeof(float), f);
 
         fclose(f);
         return true;
