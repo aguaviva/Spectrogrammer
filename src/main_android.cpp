@@ -28,6 +28,8 @@ static char                 g_LogTag[] = "ImGuiExample";
 static std::string          g_IniFilename = "";
 
 // Forward declarations of helper functions
+static void Start(struct android_app* app);
+static void Stop();
 static void Init(struct android_app* app);
 static void Shutdown();
 static void MainLoopStep();
@@ -39,6 +41,12 @@ static void handleAppCmd(struct android_app* app, int32_t appCmd)
 {
     switch (appCmd)
     {
+    case APP_CMD_START:
+        Start(app);
+        break;
+    case APP_CMD_STOP:
+        Stop();
+        break;
     case APP_CMD_SAVE_STATE:
         break;
     case APP_CMD_INIT_WINDOW:
@@ -92,6 +100,14 @@ extern "C" void android_main(struct android_app* app)
     }
 }
 
+void Start(struct android_app* app)
+{
+}
+
+void Stop(  )
+{   
+}
+
 void Init(struct android_app* app)
 {
     if (g_Initialized)
@@ -142,7 +158,7 @@ void Init(struct android_app* app)
     // Redirect loading/saving of .ini file to our location.
     // Make sure 'g_IniFilename' persists while we use Dear ImGui.
     g_IniFilename = std::string(app->activity->internalDataPath) + "/imgui.ini";
-    io.IniFilename = g_IniFilename.c_str();;
+    io.IniFilename = g_IniFilename.c_str();
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
