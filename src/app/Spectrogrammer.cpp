@@ -78,6 +78,10 @@ BufferIODouble heldScaledPowerXY;
 
 const char *pWorkingDirectory;
 
+bool bScaleXChanged = false;
+uint32_t last_width = -1;
+
+
 void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble *pLines)
 {
     float *pDataIn = pBins->GetData();
@@ -122,6 +126,8 @@ void FFT_Init(float sample_rate, int fft_size)
 
     chunker.SetQueues(pRecQueue, pFreeQueue);
     chunker.begin();
+
+    bScaleXChanged = true;
 }
 
 void FFT_Shutdown()
@@ -145,6 +151,8 @@ void Spectrogrammer_Init(void *window)
     FFT_Init(sample_rate, fft_size);
 
     bufferAverage.setAverageCount(averaging);
+
+    last_width = -1;
 }
 
 void Spectrogrammer_Shutdown()
@@ -214,7 +222,6 @@ void Spectrogrammer_MainLoopStep()
         if (bHoldInProgress) 
             ImGui::EndDisabled();
 
-
         ImGui::Separator();
         if (ImGui::Button("Close"))
             ImGui::CloseCurrentPopup();
@@ -225,11 +232,9 @@ void Spectrogrammer_MainLoopStep()
     if (ImGui::Button("Menu"))
         ImGui::OpenPopup("Settings");
 
-    bool bScaleXChanged = false;
-
     if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        bScaleXChanged = ImGui::Checkbox("Log x", &logX);
+        bScaleXChanged |= ImGui::Checkbox("Log x", &logX);
         bScaleChanged |= bScaleXChanged;
         ImGui::SameLine();
         bScaleChanged |= ImGui::Checkbox("Log y", &logY);
@@ -254,17 +259,6 @@ void Spectrogrammer_MainLoopStep()
     {
         FFT_Shutdown();
         FFT_Init(sample_rate, fft_size);
-        bScaleXChanged = true;
-    }
-
-    if (bScaleXChanged || pScaleBufferX==NULL)
-    {
-        delete pScaleBufferX;
-
-        if (logX)
-            pScaleBufferX = new ScaleBufferXLog();
-        else
-            pScaleBufferX = new ScaleBufferXLin();
     }
 
     // Draw FFT UI
@@ -290,24 +284,33 @@ void Spectrogrammer_MainLoopStep()
         draw_frame_wfall_bb = block_add("wfall", ImGui::GetContentRegionAvail(), &frame_wfall_bb, &hovered);
         if (draw_frame_wfall_bb)
         {
-            static uint32_t last_width = -1;
-
-            if (bScaleXChanged || last_width != frame_wfall_bb.GetWidth())
-            {
-                pScaleBufferX->setOutputWidth(frame_wfall_bb.GetWidth(), min_freq, max_freq);
-                pScaleBufferX->PreBuild(pProcessor);        
-            }
-
             if (last_width != frame_wfall_bb.GetWidth())
             {
                 last_width = frame_wfall_bb.GetWidth();
                 Shutdown_waterfall();
                 Init_waterfall(frame_wfall_bb.GetWidth(), frame_wfall_bb.GetHeight());
+                bScaleXChanged = true;
             }
         }
     }
 
     // now we know the size of the waterfall and the plot
+    if (bScaleXChanged || pScaleBufferX==NULL)
+    {
+        delete pScaleBufferX;
+
+        if (logX)
+            pScaleBufferX = new ScaleBufferXLog();
+        else
+            pScaleBufferX = new ScaleBufferXLin();
+
+        pScaleBufferX->setOutputWidth(frame_wfall_bb.GetWidth(), min_freq, max_freq);
+        pScaleBufferX->PreBuild(pProcessor);        
+
+        bScaleXChanged = false;
+    }
+
+
     //if we have enough audio queued process the fft, update waterfall
     BufferIODouble *pPower = NULL;
     while (chunker.Process(pProcessor, decay, fraction_overlap))

@@ -220,5 +220,8 @@ void Shutdown_waterfall()
     {
         glDeleteTextures(1, &image_texture);
         image_texture = 0xffffffff;
+        texture_width = -1;
+        texture_height = -1;
+        offset = 0;
     }
 }
