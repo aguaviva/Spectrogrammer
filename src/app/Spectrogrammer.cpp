@@ -48,7 +48,7 @@ float volume = 1;
 bool logX=true, logY=true;
 bool play = true;
 bool hold = false;
-float axis_y_min = -120;
+float axis_y_min = -130;
 float axis_y_max = -20;
 
 
@@ -239,8 +239,8 @@ void Spectrogrammer_MainLoopStep()
         ImGui::SameLine();
         bScaleChanged |= ImGui::Checkbox("Log y", &logY);
 
-        bScaleChanged |= ImGui::SliderFloat("y max", &axis_y_max, -120.0f, 0.0f);
-        bScaleChanged |= ImGui::SliderFloat("y min", &axis_y_min, -120.0f, 0.0f);
+        bScaleChanged |= ImGui::SliderFloat("y max", &axis_y_max, -130.0f, 0.0f);
+        bScaleChanged |= ImGui::SliderFloat("y min", &axis_y_min, -130.0f, 0.0f);
 
         //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
@@ -388,6 +388,10 @@ void Spectrogrammer_MainLoopStep()
             draw_log_scale(frame_fft_bb, pScaleBufferX);   
         else
             draw_lin_scale(frame_fft_bb, pScaleBufferX);   
+
+        if (logY)
+            draw_scale_y(frame_fft_bb, axis_y_min, axis_y_max);
+
     }
 
     // Draw waterfall

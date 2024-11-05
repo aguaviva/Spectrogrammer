@@ -79,3 +79,38 @@ void draw_lin_scale(ImRect frame_bb, ScaleBufferBase *pScaleBufferX)
         }
     }
 }
+
+
+void draw_scale_y(ImRect frame_bb, float min, float max)
+{
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+
+    ImGui::PushClipRect(frame_bb.Min, frame_bb.Max, true);
+    const float ref = 32768;
+
+    for (int dec=0;dec>-130;dec-=25)
+    {
+        float t = unlerp( min, max, dec);
+        float y = lerp(t, frame_bb.Max.y, frame_bb.Min.y);
+
+        if (y < frame_bb.Min.y)
+            continue;
+        if (y > frame_bb.Max.y)
+            break;
+
+        char str[255];
+        sprintf(str, "%i", (int)dec); 
+        window->DrawList->AddText(
+            ImVec2(frame_bb.Min.x, y), 
+            ImGui::GetColorU32(ImGuiCol_TextDisabled), 
+            str
+        );
+
+        window->DrawList->AddLine(
+            ImVec2(frame_bb.Min.x, y),
+            ImVec2(frame_bb.Max.x, y),
+            ImGui::GetColorU32(ImGuiCol_TextDisabled));
+    }
+
+    ImGui::PopClipRect();
+}

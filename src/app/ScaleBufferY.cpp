@@ -9,7 +9,7 @@
 float linearToDecibels(float v, float ref)
 {
     if (v<=0.001)
-        return -120;
+        v = 0.001;
 
     return 20 * log10(v / ref);
 }
