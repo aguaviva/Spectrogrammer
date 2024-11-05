@@ -52,6 +52,8 @@ void draw_lines_fit(ImRect frame_bb, float *pData, int values_count)
 {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
 
+    ImGui::PushClipRect(frame_bb.Min, frame_bb.Max, true);
+
     float scale_max_x = FLT_MAX, scale_min_x = FLT_MAX;
     float scale_max_y = FLT_MAX, scale_min_y = FLT_MAX;
     get_max_min(&pData[0], 2, values_count, &scale_max_x, &scale_min_x);
@@ -76,7 +78,11 @@ void draw_lines_fit(ImRect frame_bb, float *pData, int values_count)
         ImVec2 pos1 = ImLerp(frame_bb.Min, frame_bb.Max, tp1);
         window->DrawList->AddLine(pos0, pos1, col);
         pos0 = pos1;
+        if (tp1.x>1.0f)
+            break;
     }    
+
+    ImGui::PopClipRect();
 }
 
 static float lerp( float min, float max, float t )
@@ -96,6 +102,8 @@ void draw_lines(ImRect frame_bb, float *pData, int values_count, ImU32 col, floa
         
     ImGuiWindow* window = ImGui::GetCurrentWindow();
 
+    ImGui::PushClipRect(frame_bb.Min, frame_bb.Max, true);
+
     get_max_min(&pData[1], 2, values_count, &scale_max_y, &scale_min_y);
 
     const float inv_scale_y = (scale_min_y == scale_max_y) ? 0.0f : (1.0f / (scale_max_y - scale_min_y));
@@ -108,10 +116,14 @@ void draw_lines(ImRect frame_bb, float *pData, int values_count, ImU32 col, floa
     for (int i = 1; i < values_count; i++)
     {
         const ImVec2 pos1 = ImVec2(    
-            lerp(frame_bb.Min.x ,frame_bb.Max.x, pData[2*i+0]),
+            lerp(frame_bb.Min.x, frame_bb.Max.x, pData[2*i+0]),
             lerp(frame_bb.Max.y, frame_bb.Min.y, ImSaturate((pData[2*i+1] - scale_min_y) * inv_scale_y))
         );
         window->DrawList->AddLine(pos0, pos1, col);
         pos0 = pos1;
-    }
+        if (pos1.x>frame_bb.Max.x)
+            break;
+    }    
+
+    ImGui::PopClipRect();
 }

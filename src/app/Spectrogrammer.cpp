@@ -50,6 +50,8 @@ bool play = true;
 bool hold = false;
 float axis_y_min = -130;
 float axis_y_max = -20;
+float axis_freq_min;
+float axis_freq_max;
 
 
 enum HOLDING_STATE
@@ -123,6 +125,9 @@ void FFT_Init(float sample_rate, int fft_size)
     pProcessor->init(fft_size, sample_rate);
     min_freq = pProcessor->bin2Freq(1);
     max_freq = pProcessor->bin2Freq(pProcessor->getBinCount()-1);
+
+    axis_freq_min = min_freq;
+    axis_freq_max = max_freq;
 
     chunker.SetQueues(pRecQueue, pFreeQueue);
     chunker.begin();
@@ -239,8 +244,12 @@ void Spectrogrammer_MainLoopStep()
         ImGui::SameLine();
         bScaleChanged |= ImGui::Checkbox("Log y", &logY);
 
-        bScaleChanged |= ImGui::SliderFloat("y max", &axis_y_max, -130.0f, 0.0f);
-        bScaleChanged |= ImGui::SliderFloat("y min", &axis_y_min, -130.0f, 0.0f);
+        bScaleChanged |= ImGui::SliderFloat("dB max", &axis_y_max, -130.0f, 0.0f);
+        bScaleChanged |= ImGui::SliderFloat("dB min", &axis_y_min, -130.0f, 0.0f);
+
+        bScaleXChanged |= ImGui::SliderFloat("freq max", &axis_freq_max, min_freq, max_freq);
+        bScaleXChanged |= ImGui::SliderFloat("freq min", &axis_freq_min, min_freq, max_freq);
+        bScaleChanged |= bScaleXChanged;
 
         //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
@@ -304,7 +313,7 @@ void Spectrogrammer_MainLoopStep()
         else
             pScaleBufferX = new ScaleBufferXLin();
 
-        pScaleBufferX->setOutputWidth(frame_wfall_bb.GetWidth(), min_freq, max_freq);
+        pScaleBufferX->setOutputWidth(frame_wfall_bb.GetWidth(), axis_freq_min, axis_freq_max);
         pScaleBufferX->PreBuild(pProcessor);        
 
         bScaleXChanged = false;
