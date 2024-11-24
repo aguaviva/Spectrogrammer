@@ -121,7 +121,7 @@ void Audio_getBufferQueues(AudioQueue **pFreeQ, AudioQueue **pRecQ)
 static void * debug_capture_thread_fn( void * v )
 {
     int err;
-    while (true)
+    while (recording)
     {
         sample_buf *bufs_;
         if (freeQueue_->front(&bufs_))
@@ -137,8 +137,6 @@ static void * debug_capture_thread_fn( void * v )
         }
     }
 
-    snd_pcm_close (capture_handle);
-    fprintf(stdout, "audio interface closed\n");
     return NULL;
 }
 
@@ -158,5 +156,8 @@ void Audio_deinit()
     recording = false;
     void *retval;
     pthread_join(debug_capture_thread, &retval);
+
+    snd_pcm_close (capture_handle);
+    fprintf(stdout, "audio interface closed\n");
 }
 #endif
