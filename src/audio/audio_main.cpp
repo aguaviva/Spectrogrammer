@@ -43,8 +43,10 @@ static EchoAudioEngine engine;
 
 bool EngineService(void *ctx, uint32_t msg, void *data);
 void SetBufQueues(float sampleRate, AudioQueue *freeQ, AudioQueue *recQ);
+bool Audio_createAudioRecorder();
 
-void Audio_init(int sampleRate, int framesPerBuf) {
+
+void Audio_init(unsigned int sampleRate, int framesPerBuf) {
   SLresult result;
   memset(&engine, 0, sizeof(engine));
 

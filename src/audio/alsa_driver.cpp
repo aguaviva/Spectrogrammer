@@ -13,6 +13,7 @@
   sudo apt-get install libasound2-dev
   gcc -o alsa-record-example -lasound alsa-record-example.c && ./alsa-record-example hw:0
 */
+#ifndef ANDROID
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,3 +159,4 @@ void Audio_deinit()
     void *retval;
     pthread_join(debug_capture_thread, &retval);
 }
+#endif
