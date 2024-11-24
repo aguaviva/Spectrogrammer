@@ -25,6 +25,8 @@ static AudioQueue *freeQueue_;
 static AudioQueue *recQueue_; 
 
 #define BUF_COUNT 64
+static uint32_t bufCount_ = BUF_COUNT;
+static sample_buf *bufs_;
 static int32_t buffer_frames = 1024;
 static snd_pcm_t *capture_handle;
 static snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
@@ -99,8 +101,7 @@ void Audio_init(unsigned int sampleRate, int framesPerBuf)
 
     uint32_t bufSize = buffer_frames * 1 * 16;//engine.fastPathFramesPerBuf_ * engine.sampleChannels_ * engine.bitsPerSample_;
     bufSize = (bufSize + 7) >> 3;  // bits --> byte
-    uint32_t bufCount_ = BUF_COUNT;
-    sample_buf *bufs_ = allocateSampleBufs(bufCount_, bufSize);
+    bufs_ = allocateSampleBufs(bufCount_, bufSize);
     assert(bufs_);
 
     freeQueue_ = new AudioQueue(bufCount_);
@@ -142,13 +143,8 @@ static void * debug_capture_thread_fn( void * v )
 
 void Audio_startPlay()
 {
-    recording = true;
-
-    pthread_attr_t attr; 
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    
-    pthread_create(&debug_capture_thread, &attr, debug_capture_thread_fn, NULL);
+    recording = true;    
+    pthread_create(&debug_capture_thread, NULL, debug_capture_thread_fn, NULL);
 }
 
 void Audio_deinit()
@@ -158,6 +154,11 @@ void Audio_deinit()
     pthread_join(debug_capture_thread, &retval);
 
     snd_pcm_close (capture_handle);
+
+    delete recQueue_;
+    delete freeQueue_;
+    releaseSampleBufs(bufs_, bufCount_);
+
     fprintf(stdout, "audio interface closed\n");
 }
 #endif
