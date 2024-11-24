@@ -1,8 +1,9 @@
 # Spectrogrammer
 
-Spectrum Analyzer Android App
+Spectrum Analyzer
 
 ## Features
+- Runs on Android and Linux
 - Frequency analysis
     - 4096 bands FFT 
     - configurable

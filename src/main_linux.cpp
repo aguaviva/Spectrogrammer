@@ -6,65 +6,22 @@
 #include <math.h>
 #include <string.h>
 //#include <cstdarg>
-#include <stdarg.h>
-#include "os_generic.h"
 #include <GLES3/gl3.h>
-#ifdef ANDROID
-#include <android/asset_manager.h>
-#include <android/asset_manager_jni.h>
-#include <android_native_app_glue.h>
-#include <android/sensor.h>
-#else
 #include <GLFW/glfw3.h> 
-#endif
 #include <byteswap.h>
 #include <errno.h>
 #include <fcntl.h>
-#include "CNFGAndroid.h"
+
+#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
+
 #include "Spectrogrammer.h"
-
-//#define CNFA_IMPLEMENTATION
-#define CNFG_IMPLEMENTATION
-#include "CNFG.h"
-
-
-#ifdef ANDROID
-ALooper * l;
-#endif
-const uint32_t SAMPLE_RATE = 44100;
-const uint16_t SAMPLE_COUNT = 512;
-uint32_t stream_offset = 0;
-uint16_t audio_frequency;
-
-
-
 
 //writes the text to a file to path (example): /storage/emulated/0/Android/data/org.yourorg.cnfgtest/files
 // You would not normally want to do this, but it's an example of how to do local storage.
-void Log(const char *fmt, ...)
-{
-#if ANDROID	
-	const char* getpath = AndroidGetExternalFilesDir();
-#else
-	const char* getpath = ".";
-#endif	
-	char buffer[2048];
-	snprintf(buffer, sizeof(buffer), "%s/log.txt", getpath);
-	FILE *f = fopen(buffer, "w");
-	if (f == NULL)
-	{
-		exit(1);
-	}
 
-	va_list arg;
-	va_start(arg, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, arg);
-	va_end(arg);	
 
-	fprintf(f, "%s\n", buffer);
-
-	fclose(f);
-}
 short screenx, screeny;
 
 static void glfw_error_callback(int error, const char* description)
@@ -74,10 +31,6 @@ static void glfw_error_callback(int error, const char* description)
 
 int main( int argc, char ** argv )
 {
-	int frames = 0;
-	double ThisTime;
-	double LastFPSTime = OGGetAbsoluteTime();
-
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -112,32 +65,58 @@ int main( int argc, char ** argv )
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
 
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);    
+
+    //Syncy_CreateApp(window);
+    //Syncy_InitWindow(window);
     Spectrogrammer_Init(window);
 
-	Log( "Startup Complete" );
-
-    while (!glfwWindowShouldClose(window))
+    bool keepRunning = true;
+    while (!glfwWindowShouldClose(window) && keepRunning)
 	{
-
 		glfwPollEvents();
+        if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
+        {
+            ImGui_ImplGlfw_Sleep(10);
+            continue;
+        }
 
-		Spectrogrammer_MainLoopStep();
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
-		frames++;
-		
-		glfwSwapBuffers(window);
+		keepRunning = Spectrogrammer_MainLoopStep(); 
+	
+       // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-		ThisTime = OGGetAbsoluteTime();
-		if( ThisTime > LastFPSTime + 1 )
-		{
-			printf( "FPS: %d\n", frames );
-			frames = 0;
-			LastFPSTime+=1;
-		}
-
+        glfwSwapBuffers(window);
 	}
 
-	Spectrogrammer_Shutdown();
+	//Syncy_TermWindow();
+    //Syncy_DestroyApp();
+    Spectrogrammer_Shutdown();
 
 	return(0x0);
 }

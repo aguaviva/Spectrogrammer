@@ -20,10 +20,10 @@
 #include "backends/imgui_impl_opengl3.h"
 #include "imgui_helpers.h"
 #include "waterfall.h"
+#include "audio/audio_main.h"
 #ifdef ANDROID
 #include <EGL/egl.h>
 #include "../android_native_app_glue.h"
-#include "audio/audio_main.h"
 #include "backends/imgui_impl_android.h"
 #else
 #include <GLFW/glfw3.h>
@@ -100,26 +100,13 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
 
 void FFT_Init(float sample_rate, int fft_size)
 {
-#ifdef ANDROID    
     int audio_buffer_length = 1024;
-    Audio_createSLEngine(sample_rate, audio_buffer_length);
-    Audio_createAudioRecorder();
+    Audio_init(sample_rate, audio_buffer_length);
     Audio_startPlay();                    
 
     AudioQueue* pFreeQueue = nullptr;
     AudioQueue* pRecQueue = nullptr;
     Audio_getBufferQueues(&pFreeQueue, &pRecQueue);
-#else
-    pRecQueue = new AudioQueue(32);
-    pFreeQueue = new AudioQueue(32);
-
-    buffers = allocateSampleBufs(20, 2*fft_size);
-    for (int i=0;i<20;i++)
-    {
-        buffers[i].size_ = 2;
-        pFreeQueue->push(&buffers[i]);
-    }
-#endif    
 
     pProcessor = new myFFT();
     pProcessor->init(fft_size, sample_rate);
@@ -140,10 +127,7 @@ void FFT_Shutdown()
     chunker.end();
     delete pProcessor;
 
-#ifdef ANDROID    
-    Audio_deleteAudioRecorder();
-    Audio_deleteSLEngine();
-#endif    
+    Audio_deinit();
 }
 
 void Spectrogrammer_Init(void *window)
@@ -151,6 +135,8 @@ void Spectrogrammer_Init(void *window)
 #ifdef ANDROID    
     android_app * pApp = (android_app *)window;
     pWorkingDirectory = pApp->activity->internalDataPath;
+#else    
+    pWorkingDirectory = ".";
 #endif
 
     FFT_Init(sample_rate, fft_size);
@@ -167,7 +153,7 @@ void Spectrogrammer_Shutdown()
     Shutdown_waterfall();
 }
 
-void Spectrogrammer_MainLoopStep()
+bool Spectrogrammer_MainLoopStep()
 {
     ImGuiWindowFlags window_flags = 0;
     window_flags |= ImGuiWindowFlags_NoTitleBar;
@@ -196,7 +182,7 @@ void Spectrogrammer_MainLoopStep()
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(1000, -1));
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, -1));
     if (ImGui::BeginPopupModal("Hold Menu", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
         bool bHoldInProgress = (holding_state == HOLDING_STATE_STARTED);
@@ -417,4 +403,6 @@ void Spectrogrammer_MainLoopStep()
     ImGui::PopStyleVar(); // window padding
 
     ImGui::End();
+
+    return true;
 }

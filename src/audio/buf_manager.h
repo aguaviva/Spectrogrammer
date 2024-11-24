@@ -16,7 +16,7 @@
 #ifndef NATIVE_AUDIO_BUF_MANAGER_H
 #define NATIVE_AUDIO_BUF_MANAGER_H
 #include <sys/types.h>
-#include <SLES/OpenSLES.h>
+//#include <SLES/OpenSLES.h>
 #include <atomic>
 #include <cassert>
 #include <memory>

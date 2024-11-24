@@ -44,7 +44,7 @@ static EchoAudioEngine engine;
 bool EngineService(void *ctx, uint32_t msg, void *data);
 void SetBufQueues(float sampleRate, AudioQueue *freeQ, AudioQueue *recQ);
 
-void Audio_createSLEngine(int sampleRate, int framesPerBuf) {
+void Audio_init(int sampleRate, int framesPerBuf) {
   SLresult result;
   memset(&engine, 0, sizeof(engine));
 
@@ -80,6 +80,8 @@ void Audio_createSLEngine(int sampleRate, int framesPerBuf) {
   for (uint32_t i = 0; i < engine.bufCount_; i++) {
     engine.freeBufQueue_->push(&engine.bufs_[i]);
   }
+
+  Audio_createAudioRecorder();
 }
 
 void Audio_getBufferQueues(AudioQueue **pFreeQ, AudioQueue **pRecQ)
@@ -205,6 +207,12 @@ bool EngineService(void *ctx, uint32_t msg, void *data) {
   }
 
   return true;
+}
+
+void Audio_deinit()
+{
+    Audio_deleteAudioRecorder();
+    Audio_deleteSLEngine();
 }
 
 

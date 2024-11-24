@@ -1,11 +1,15 @@
 #Copyright (c) 2019-2020 <>< Charles Lohr - Under the MIT/x11 or NewBSD License you choose.
 # NO WARRANTY! NO GUARANTEE OF SUPPORT! USE AT YOUR OWN RISK
-BUILD_ANDROID:=y
-DEBUG:=n
-ARCH:=arm64-v8a
+BUILD_ANDROID:=n
+DEBUG:=y
 
+ifeq ($(BUILD_ANDROID),y)
+TARGET = arm64-v8a
 all : makecapk.apk
-#all: linux_version
+else
+TARGET = x86_64
+all: linux_version
+endif
 .PHONY : push run
 
 # WARNING WARNING WARNING!  YOU ABSOLUTELY MUST OVERRIDE THE PROJECT NAME
@@ -20,7 +24,8 @@ PACKAGENAME?=org.nanoorg.$(APPNAME)
 SRC=$(SRC_DIR)/main_android.cpp $(SRC_DIR)/android_native_app_glue.c
 SRC+=$(shell find $(SRC_DIR)/audio -name '*.cpp')
 else
-SRC=$(SRC)/main_linux.c
+SRC=$(SRC_DIR)/main_linux.cpp
+SRC+=$(SRC_DIR)/audio/alsa_driver.cpp
 endif
 
 # Add app source files
@@ -106,49 +111,42 @@ CFLAGS+= -Isubmodules/kissfft -Isubmodules/imgui -Isubmodules/rawdraw
 ifeq ($(BUILD_ANDROID),y)
 LDFLAGS += -landroid -lGLESv3 -lEGL  -llog -lOpenSLES 
 LDFLAGS += -shared -uANativeActivity_onCreate
-AAPT:=$(BUILD_TOOLS)/aapt
-endif
-
-ifeq ($(ARCH),arm64-v8a)
-CFLAGS_2+=-m64
-LDFLAGS+= -L$(NDK)/sources/cxx-stl/llvm-libc++/libs/arm64-v8a/ -lc++abi 
-LDFLAGS+= `pkg-config --libs libs/$(ARCH)/kissfft/lib64/pkgconfig/kissfft-float.pc`
-ARCH_DIR=$(ARCH)
-AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android-ar
-LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android-ld
-CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang
-endif
-
-ifeq ($(ARCH),armeabi-v7a)
-CFLAGS_2+=-mfloat-abi=softfp -m32
-
-LDFLAGS+= -L$(NDK)/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a/ -lc++abi 
-LDFLAGS+= `pkg-config --libs libs/armeabi-v7a/kissfft/lib64/pkgconfig/kissfft-float.pc`
-ARCH_DIR=arm
-AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/arm-linux-androideabi-ar
-LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/arm-linux-androideabi-ld
-CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-androideabi$(ANDROIDVERSION)-clang
-endif
-
-
-ifeq ($(ARCH),x86_64)
+LDFLAGS += -L$(NDK)/sources/cxx-stl/llvm-libc++/libs/arm64-v8a/ -lc++abi 
+else
 LDFLAGS += -lGL `pkg-config --static --libs glfw3` 
 LDFLAGS += -lX11 -lpthread -lXinerama -lXext -lGL -lm -ldl -lstdc++
-LDFLAGS += `pkg-config --libs libs/x86_64/kissfft/x86_64/pkgconfig/kissfft-float.pc`
+LDFLAGS += -lasound
+LDFLAGS += `pkg-config --libs libs/x86_64/kissfft/lib64/pkgconfig/kissfft-float.pc`
 CFLAGS += `pkg-config --cflags glfw3` 
 CFLAGS += -std=c++11
 CFLAGS += -Wall -Wformat
-#CFLAGS_2:=-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32
-CFLAGS_2:=-march=x86-64 -msse4.2 -mpopcnt -m64 -mtune=intel#CFLAGS_x86:=-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32
-
-AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/i686-linux-android$(ANDROIDVERSION)-ar
-LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/i686-linux-android$(ANDROIDVERSION)-ld
-CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/x86_64-linux-android$(ANDROIDVERSION)-clang
-
 endif
 
 LDFLAGS += -lm  
 LDFLAGS += -Wl,--no-undefined
+
+AR_ARM64:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android-ar
+AR_ARM32:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-android-ar
+
+LD_ARM64:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android-ld
+LD_ARM64:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-android-ld
+
+CC_ARM64:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang
+CC_ARM32:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-androideabi$(ANDROIDVERSION)-clang
+CC_x86:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/i686-linux-android$(ANDROIDVERSION)-clang
+CC_x86_64:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/x86_64-linux-android$(ANDROIDVERSION)-clang
+AAPT:=$(BUILD_TOOLS)/aapt
+
+# Which binaries to build? Just comment/uncomment these lines:
+TARGETS += makecapk/lib/$(TARGET)/lib$(APPNAME).so
+#TARGETS += makecapk/lib/armeabi-v7a/lib$(APPNAME).so
+#TARGETS += makecapk/lib/x86/lib$(APPNAME).so
+#TARGETS += makecapk/lib/x86_64/lib$(APPNAME).so
+
+CFLAGS_ARM64:=-m64
+CFLAGS_ARM32:=-mfloat-abi=softfp -m32
+CFLAGS_x86:=-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32
+CFLAGS_x86_64:=-march=x86-64 -msse4.2 -mpopcnt -m64 -mtune=intel
 
 STOREPASS?=password
 DNAME:="CN=example.com, OU=ID, O=Example, L=Doe, S=John, C=GB"
@@ -166,9 +164,8 @@ folders:
 	mkdir -p makecapk/lib/x86
 	mkdir -p makecapk/lib/x86_64
 
-
 kissfft:
-	make -C submodules/kissfft PREFIX=../../libs/$(ARCH)/kissfft LD=$(LD) CC=$(CC) AR=$(AR) KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install 
+	make -C submodules/kissfft PREFIX=../../libs/$(TARGET)/kissfft LD=$(LD) CC=$(CC) AR=$(AR) KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install 
 	make -C submodules/kissfft clean
 	
 ################## IMGUI
@@ -180,12 +177,17 @@ else
 IMGUI_SRCS += backends/imgui_impl_glfw.cpp
 endif
 
-libs/$(ARCH)/imgui/objs/%.o : submodules/imgui/%.cpp
-	mkdir -p libs/$(ARCH)/imgui/objs
-	mkdir -p libs/$(ARCH)/imgui/objs/backends
-	$(CC) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_2) $^ -o $@  
+libs/$(TARGET)/imgui/objs/%.o : submodules/imgui/%.cpp
+	mkdir -p libs/$(TARGET)/imgui/objs
+	mkdir -p libs/$(TARGET)/imgui/objs/backends
+	
+ifeq ($(BUILD_ANDROID),y)	
+	$(CC_ARM64) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_ARM64) $^ -o $@  
+else
+	$(CC) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_x86_64) $^ -o $@
+endif
 
-libs/$(ARCH)/imgui/libimgui.a : $(addprefix libs/$(ARCH)/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS)))
+libs/$(TARGET)/imgui/libimgui.a : $(addprefix libs/$(TARGET)/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS)))
 	ar ru $@ $^
 
 ###############
@@ -204,8 +206,8 @@ makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(ANDROIDSRCS) libs/$(ARCH)/imgui/li
 #jarsigner -verify -verbose -certs makecapk.apk
 
 
-linux_version : $(SRC) imgui/lib/libimgui.a
-	$(CC) $(CFLAGS) -o $@ $^  $(LDFLAGS)
+linux_version : $(SRC) libs/$(TARGET)/imgui/libimgui.a
+	$(CC) $(CFLAGS) $(CFLAGS_x86_64) -o $@ $^  $(LDFLAGS)
 
 makecapk.apk : makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so $(SRC_DIR)/AndroidManifest.xml 
 	mkdir -p makecapk/assets
