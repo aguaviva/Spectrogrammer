@@ -220,23 +220,29 @@ bool Spectrogrammer_MainLoopStep()
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("Menu"))
-        ImGui::OpenPopup("Settings");
+    if (ImGui::Button("Axis"))
+        ImGui::OpenPopup("Axis Settings");
 
-    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    //ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x*.8, -1));
+    if (ImGui::BeginPopupModal("Axis Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
         bScaleXChanged |= ImGui::Checkbox("Log x", &logX);
         bScaleChanged |= bScaleXChanged;
         ImGui::SameLine();
         bScaleChanged |= ImGui::Checkbox("Log y", &logY);
 
+        ImGui::Text("Y axis");
         bScaleChanged |= ImGui::SliderFloat("dB max", &axis_y_max, -130.0f, 0.0f);
         bScaleChanged |= ImGui::SliderFloat("dB min", &axis_y_min, -130.0f, 0.0f);
 
+        ImGui::Text("X axis");
         bScaleXChanged |= ImGui::SliderFloat("freq max", &axis_freq_max, min_freq, max_freq);
         bScaleXChanged |= ImGui::SliderFloat("freq min", &axis_freq_min, min_freq, max_freq);
+
         bScaleChanged |= bScaleXChanged;
 
+        ImGui::Text("Time axis");
         //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
         ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
         if (ImGui::SliderInt("averaging", &averaging, 1,500))
@@ -256,7 +262,7 @@ bool Spectrogrammer_MainLoopStep()
         FFT_Init(sample_rate, fft_size);
     }
 
-    // Draw FFT UI
+    // Placeholder for FFT graph 
     ImRect frame_fft_bb;
     bool draw_frame_fft_bb;
     {
@@ -271,9 +277,9 @@ bool Spectrogrammer_MainLoopStep()
         }
     }
 
+    // Placeholder for waterfall 
     ImRect frame_wfall_bb;
     bool draw_frame_wfall_bb;
-    if (true)
     {
         bool hovered;
         draw_frame_wfall_bb = block_add("wfall", ImGui::GetContentRegionAvail(), &frame_wfall_bb, &hovered);
@@ -304,7 +310,6 @@ bool Spectrogrammer_MainLoopStep()
 
         bScaleXChanged = false;
     }
-
 
     //if we have enough audio queued process the fft, update waterfall
     BufferIODouble *pPower = NULL;
@@ -338,6 +343,7 @@ bool Spectrogrammer_MainLoopStep()
         }
     }
 
+    // capture state?
     if ((pPower!=NULL) && (holding_state == HOLDING_STATE_STARTED))
     {
         heldPower_bins.copy(pPower); //need original
@@ -348,7 +354,6 @@ bool Spectrogrammer_MainLoopStep()
     } 
 
     // rescale held data if needed        
-
     if ((holding_state == HOLDING_STATE_READY) && bScaleChanged)
     {
         // rescale Y axis to held line is correct
@@ -360,13 +365,9 @@ bool Spectrogrammer_MainLoopStep()
     }
 
     // draw spectrogram
-
     if (draw_frame_fft_bb)
     {
-        if (play)
-        {
-            generate_spectrum_lines_from_bin_data(&scaledPowerY, &spectrumSamples);
-        }
+        generate_spectrum_lines_from_bin_data(&scaledPowerY, &spectrumSamples);
 
         // draw spectrogram
         ImU32 col = IM_COL32(200, 200, 200, 200);
@@ -386,7 +387,6 @@ bool Spectrogrammer_MainLoopStep()
 
         if (logY)
             draw_scale_y(frame_fft_bb, axis_y_min, axis_y_max);
-
     }
 
     // Draw waterfall
