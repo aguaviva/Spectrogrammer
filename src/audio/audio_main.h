@@ -1,5 +1,7 @@
 
-//#include "audio_common.h"
+#pragma once
+
+#include "audio_common.h"
 
 void Audio_init(unsigned int sampleRate, int framesPerBuf);
 void Audio_deinit();
