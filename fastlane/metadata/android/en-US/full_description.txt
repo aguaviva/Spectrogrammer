@@ -1,0 +1,21 @@
+<i>Spectrogrammer</i> helps you analyze audio and vibrations, you can spot issues, tune instruments and identify noises byt their footprint.
+
+<br><b>Features:</b>
+
+- Runs on Android and Linux
+- Frequency analysis
+  - 4096 bands FFT
+  - configurable
+    - decay
+    - averaging
+- Visualization
+  - Spectrogram
+  - Waterfall
+  - Uses a magma heatmap
+  - When hold is active a binary heatmap is used to shows above/below values
+        Linear / Log scales for both axis
+  - Hold function to capture refrence levels
+  - Save/load/delete/rename for comparing
+- High performance, developed entirely in C/C++
+- Multiplatform, runs also on linux
+

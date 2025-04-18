@@ -20,7 +20,7 @@ Spectrum Analyzer
 - High performance, developed entirely in C/C++
 
 ## Screenshot
-<img src="Screenshot.png" alt="Screenshot" width="200"/>
+<img src="fastlane/metadata/android/en-US/phoneScreenshots/Screenshot.png" alt="Screenshot" width="200"/>
 
 ## Building
 ```
