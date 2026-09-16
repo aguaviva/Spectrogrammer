@@ -5,6 +5,8 @@
 #ifndef SPECTROGRAMMER_BUFFERAVERAGE_H
 #define SPECTROGRAMMER_BUFFERAVERAGE_H
 
+#include "BufferIO.h"
+
 class BufferAverage
 {
     BufferIODouble bufferIO;

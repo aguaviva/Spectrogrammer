@@ -25,22 +25,20 @@ Spectrum Analyzer
 ## Building
 ```
 # clone with
-git clone git@github.com:aguaviva/spectrogrammer.git --recurse-submodules --shallow-submodules
-
-# Build for Android
-> make BUILD_ANDROID=y
-> make push run 
+git clone https://github.com/aguaviva/Spectrogrammer.git --recurse-submodules
 
 # Build for Linux
-> make BUILD_ANDROID=n
+make
+
+# Build for Android
+make BUILD_ANDROID=y
+
+# Install and run the Android build
+make BUILD_ANDROID=y run
 ```
 
 ## Notes/stuff I need help with:
-- If app loses focus will crash/lose data
-- getting a nice makefile that can compile for linux and windows
-- I can't get to build the app and kissfft in on step
-- Created a rudimetary lib for imgui to speed up linking, is there a better way?
-- App shouldn't refresh as soon as possible, only when needed
+- Windows support
 - should prob use Cnlohr audio libs :)
 
 ## credits

@@ -90,11 +90,6 @@ static float lerp( float min, float max, float t )
     return min*(1.0-t) + max*t;
 }
 
-static float unlerp( float min, float max, float x)
-{
-    return (x - min)/(max - min);
-}
-
 void draw_lines(ImRect frame_bb, float *pData, int values_count, ImU32 col, float scale_min_y, float scale_max_y)
 {
     if (pData==NULL || values_count==0)

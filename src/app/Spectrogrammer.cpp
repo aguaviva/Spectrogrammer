@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include "Processor.h"
 #include "fft.h"
 #include "pass_through.h"
@@ -22,7 +23,6 @@
 #include "waterfall.h"
 #include "audio/audio_main.h"
 #ifdef ANDROID
-#include "audio/audio_SLES.h"
 #include <EGL/egl.h>
 #include "../android_native_app_glue.h"
 #include "backends/imgui_impl_android.h"
@@ -84,6 +84,73 @@ const char *pWorkingDirectory;
 bool bScaleXChanged = false;
 uint32_t last_width = -1;
 
+struct AppSettings
+{
+    uint32_t version;
+    uint32_t fft_size;
+    float sample_rate;
+    int averaging;
+    float decay;
+    float axis_y_min;
+    float axis_y_max;
+    float axis_freq_min;
+    float axis_freq_max;
+    bool logX;
+    bool logY;
+};
+
+static void settings_path(char *path, size_t size)
+{
+    snprintf(path, size, "%s/Spectrogrammer.settings", pWorkingDirectory);
+}
+
+static void save_settings()
+{
+    char path[1024];
+    settings_path(path, sizeof(path));
+    FILE *f = fopen(path, "wb");
+    if (f == NULL)
+        return;
+
+    AppSettings settings = {
+        1, fft_size, sample_rate, averaging, decay,
+        axis_y_min, axis_y_max, axis_freq_min, axis_freq_max, logX, logY
+    };
+    fwrite(&settings, sizeof(settings), 1, f);
+    fclose(f);
+}
+
+static void load_settings()
+{
+    char path[1024];
+    settings_path(path, sizeof(path));
+    FILE *f = fopen(path, "rb");
+    if (f == NULL)
+        return;
+
+    AppSettings settings = {};
+    bool valid = fread(&settings, sizeof(settings), 1, f) == 1 &&
+                 settings.version == 1 &&
+                 settings.fft_size >= 128 && settings.fft_size <= 8192 &&
+                 settings.sample_rate >= 8000 && settings.sample_rate <= 96000 &&
+                 settings.averaging >= 1 && settings.averaging <= 500 &&
+                 settings.decay >= 0.0f && settings.decay <= 0.99f;
+    fclose(f);
+    if (!valid)
+        return;
+
+    fft_size = settings.fft_size;
+    sample_rate = settings.sample_rate;
+    averaging = settings.averaging;
+    decay = settings.decay;
+    axis_y_min = settings.axis_y_min;
+    axis_y_max = settings.axis_y_max;
+    axis_freq_min = settings.axis_freq_min;
+    axis_freq_max = settings.axis_freq_max;
+    logX = settings.logX;
+    logY = settings.logY;
+}
+
 
 void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble *pLines)
 {
@@ -99,10 +166,13 @@ void generate_spectrum_lines_from_bin_data(BufferIODouble *pBins, BufferIODouble
     }
 }
 
-void FFT_Init(float sample_rate, int fft_size)
+void FFT_Init(float requested_sample_rate, int requested_fft_size)
 {
     int audio_buffer_length = 1024;
-    Audio_init(sample_rate, audio_buffer_length);
+    Audio_init(requested_sample_rate, audio_buffer_length);
+    float actual_sample_rate = Audio_getSampleRate();
+    if (actual_sample_rate > 0)
+        sample_rate = actual_sample_rate;
     Audio_startPlay();                    
 
     AudioQueue* pFreeQueue = nullptr;
@@ -110,12 +180,14 @@ void FFT_Init(float sample_rate, int fft_size)
     Audio_getBufferQueues(&pFreeQueue, &pRecQueue);
 
     pProcessor = new myFFT();
-    pProcessor->init(fft_size, sample_rate);
+    pProcessor->init(requested_fft_size, sample_rate);
     min_freq = pProcessor->bin2Freq(1);
     max_freq = pProcessor->bin2Freq(pProcessor->getBinCount()-1);
 
-    axis_freq_min = min_freq;
-    axis_freq_max = max_freq;
+    if (axis_freq_min < min_freq || axis_freq_min >= max_freq)
+        axis_freq_min = min_freq;
+    if (axis_freq_max <= axis_freq_min || axis_freq_max > max_freq)
+        axis_freq_max = max_freq;
 
     chunker.SetQueues(pRecQueue, pFreeQueue);
     chunker.begin();
@@ -127,6 +199,7 @@ void FFT_Shutdown()
 {
     chunker.end();
     delete pProcessor;
+    pProcessor = nullptr;
 
     Audio_deinit();
 }
@@ -135,11 +208,12 @@ void Spectrogrammer_Init(void *window)
 {
 #ifdef ANDROID    
     android_app * pApp = (android_app *)window;
-    pWorkingDirectory = "/sdcard/Documents"; //pApp->activity->internalDataPath;
+    pWorkingDirectory = pApp->activity->internalDataPath;
 #else    
     pWorkingDirectory = ".";
 #endif
 
+    load_settings();
     FFT_Init(sample_rate, fft_size);
 
     bufferAverage.setAverageCount(averaging);
@@ -149,9 +223,18 @@ void Spectrogrammer_Init(void *window)
 
 void Spectrogrammer_Shutdown()
 {
+    save_settings();
     FFT_Shutdown();
 
     Shutdown_waterfall();
+    delete pScaleBufferX;
+    pScaleBufferX = nullptr;
+}
+
+void Spectrogrammer_InvalidateGraphics()
+{
+    Shutdown_waterfall();
+    last_width = -1;
 }
 
 bool Spectrogrammer_MainLoopStep()
@@ -198,7 +281,7 @@ bool Spectrogrammer_MainLoopStep()
             holding_state = HOLDING_STATE_READY;
         }
 
-        if (ImGui::Button("Holdy"))
+        if (ImGui::Button("Capture"))
         {
             SetColorMap(1);
             holding_state = HOLDING_STATE_STARTED;
@@ -245,9 +328,12 @@ bool Spectrogrammer_MainLoopStep()
 
         ImGui::Text("Time axis");
         //ImGui::SliderFloat("overlap", &fraction_overlap, 0.0f, 0.99f);
-        ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
+        bScaleChanged |= ImGui::SliderFloat("decay", &decay, 0.0f, 0.99f);
         if (ImGui::SliderInt("averaging", &averaging, 1,500))
+        {
             bufferAverage.setAverageCount(averaging);
+            bScaleChanged = true;
+        }
         
         ImGui::Spacing();
         if (ImGui::Button("Close"))
@@ -261,6 +347,8 @@ bool Spectrogrammer_MainLoopStep()
     {
         FFT_Shutdown();
         FFT_Init(sample_rate, fft_size);
+        bScaleXChanged = true;
+        save_settings();
     }
 
     // Placeholder for FFT graph 
@@ -405,5 +493,13 @@ bool Spectrogrammer_MainLoopStep()
 
     ImGui::End();
 
+    if (bScaleChanged)
+        save_settings();
+
     return true;
+}
+
+bool Spectrogrammer_ShouldAnimate()
+{
+    return play;
 }

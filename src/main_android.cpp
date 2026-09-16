@@ -11,19 +11,26 @@
 #include "backends/imgui_impl_android.h"
 #include "backends/imgui_impl_opengl3.h"
 #include <android/log.h>
+#include <android/configuration.h>
 #include <android_native_app_glue.h>
 #include <android/asset_manager.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <string>
 #include "Spectrogrammer.h"
+#include "audio/audio_main.h"
 
 // Data
 static EGLDisplay           g_EglDisplay = EGL_NO_DISPLAY;
 static EGLSurface           g_EglSurface = EGL_NO_SURFACE;
 static EGLContext           g_EglContext = EGL_NO_CONTEXT;
-static struct android_app*  g_App = nullptr;
+extern struct android_app*  g_App;
 static bool                 g_Initialized = false;
+static bool                 g_AppInitialized = false;
+static bool                 g_HasFocus = false;
+static bool                 g_RenderRequested = true;
+static bool                 g_PermissionRequested = false;
+static bool                 g_AudioPaused = false;
 static char                 g_LogTag[] = "ImGuiExample";
 static std::string          g_IniFilename = "";
 
@@ -32,11 +39,13 @@ static void Start(struct android_app* app);
 static void Stop();
 static void Init(struct android_app* app);
 static void Resume(struct android_app* app);
-static void Shutdown();
+static void Shutdown(bool final);
 static void MainLoopStep();
 static void AndroidDisplayKeyboard(int pShow);
 static int GetAssetData(const char* filename, void** out_data);
 static void keep_screen_on();
+static bool HasAudioPermission();
+static void RequestAudioPermission();
 
 // Main code
 static void handleAppCmd(struct android_app* app, int32_t appCmd)
@@ -55,10 +64,24 @@ static void handleAppCmd(struct android_app* app, int32_t appCmd)
         Init(app);
         break;
     case APP_CMD_TERM_WINDOW:
-        Shutdown();
+        Shutdown(false);
         break;
     case APP_CMD_GAINED_FOCUS:
+        g_HasFocus = true;
+        g_RenderRequested = true;
+        if (g_AppInitialized && g_AudioPaused)
+        {
+            Audio_startPlay();
+            g_AudioPaused = false;
+        }
+        break;
     case APP_CMD_LOST_FOCUS:
+        g_HasFocus = false;
+        if (g_AppInitialized && !g_AudioPaused)
+        {
+            Audio_pausePlay();
+            g_AudioPaused = true;
+        }
         break;
     case APP_CMD_RESUME:
         Resume(app);
@@ -68,6 +91,9 @@ static void handleAppCmd(struct android_app* app, int32_t appCmd)
 
 static int32_t handleInputEvent(struct android_app* app, AInputEvent* inputEvent)
 {
+    g_RenderRequested = true;
+    if (!g_Initialized)
+        return 0;
     return ImGui_ImplAndroid_HandleInputEvent(inputEvent);
 }
 
@@ -81,9 +107,12 @@ extern "C" void android_main(struct android_app* app)
         int out_events;
         struct android_poll_source* out_data;
 
-        // Poll all events. If the app is not visible, this loop blocks until g_Initialized == true.
-        while (ALooper_pollAll(g_Initialized ? 0 : -1, nullptr, &out_events, (void**)&out_data) >= 0)
+        const bool animate = g_Initialized && g_HasFocus && Spectrogrammer_ShouldAnimate();
+        const int timeout = animate ? 0 : ((!g_AppInitialized && app->window) ? 100 : -1);
+        int poll_timeout = timeout;
+        while (ALooper_pollAll(poll_timeout, nullptr, &out_events, (void**)&out_data) >= 0)
         {
+            poll_timeout = 0;
             // Process one event
             if (out_data != nullptr)
                 out_data->process(app, out_data);
@@ -91,17 +120,19 @@ extern "C" void android_main(struct android_app* app)
             // Exit the app by returning from within the infinite loop
             if (app->destroyRequested != 0)
             {
-                // shutdown() should have been called already while processing the
-                // app command APP_CMD_TERM_WINDOW. But we play save here
-                if (!g_Initialized)
-                    Shutdown();
-
+                Shutdown(true);
                 return;
             }
         }
 
-        // Initiate a new frame
-        MainLoopStep();
+        if (!g_Initialized && app->window && HasAudioPermission())
+            Init(app);
+
+        if (g_Initialized && g_HasFocus && (animate || g_RenderRequested))
+        {
+            MainLoopStep();
+            g_RenderRequested = false;
+        }
     }
 }
 
@@ -125,6 +156,12 @@ void Init(struct android_app* app)
         return;
 
     g_App = app;
+    if (!HasAudioPermission())
+    {
+        RequestAudioPermission();
+        return;
+    }
+
     ANativeWindow_acquire(g_App->window);
 
     keep_screen_on();
@@ -180,20 +217,26 @@ void Init(struct android_app* app)
     ImGui_ImplAndroid_Init(g_App->window);
     ImGui_ImplOpenGL3_Init("#version 300 es");
 
-    // We load the default font with increased size to improve readability on many devices with "high" DPI.
-    // FIXME: Put some effort into DPI awareness.
-    // Important: when calling AddFontFromMemoryTTF(), ownership of font_data is transferred by Dear ImGui by default (deleted is handled by Dear ImGui), unless we set FontDataOwnedByAtlas=false in ImFontConfig
+    int density = AConfiguration_getDensity(app->config);
+    float ui_scale = density > 0 ? (float)density / 160.0f : 1.0f;
     ImFontConfig font_cfg;
-    font_cfg.SizePixels = 22.0f * 2;
+    font_cfg.SizePixels = 18.0f * ui_scale;
     io.Fonts->AddFontDefault(&font_cfg);
+    ImGui::GetStyle().ScaleAllSizes(ui_scale);
 
-    // Arbitrary scale-up
-    // FIXME: Put some effort into DPI awareness
-    ImGui::GetStyle().ScaleAllSizes(3.0f * 2);
-
-    Spectrogrammer_Init(app);
+    if (!g_AppInitialized)
+    {
+        Spectrogrammer_Init(app);
+        g_AppInitialized = true;
+        if (!g_HasFocus)
+        {
+            Audio_pausePlay();
+            g_AudioPaused = true;
+        }
+    }
 
     g_Initialized = true;
+    g_RenderRequested = true;
 }
 
 void MainLoopStep()
@@ -226,37 +269,50 @@ void MainLoopStep()
     eglSwapBuffers(g_EglDisplay, g_EglSurface);
 }
 
-void Shutdown()
+void Shutdown(bool final)
 {
-    if (!g_Initialized)
-        return;
-
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplAndroid_Shutdown();
-    ImGui::DestroyContext();
-
-    Spectrogrammer_Shutdown();
-
-    if (g_EglDisplay != EGL_NO_DISPLAY)
+    if (g_Initialized)
     {
-        eglMakeCurrent(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (final && g_AppInitialized)
+        {
+            Spectrogrammer_Shutdown();
+            g_AppInitialized = false;
+        }
+        else
+        {
+            Spectrogrammer_InvalidateGraphics();
+        }
 
-        if (g_EglContext != EGL_NO_CONTEXT)
-            eglDestroyContext(g_EglDisplay, g_EglContext);
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplAndroid_Shutdown();
+        ImGui::DestroyContext();
 
-        if (g_EglSurface != EGL_NO_SURFACE)
-            eglDestroySurface(g_EglDisplay, g_EglSurface);
+        if (g_EglDisplay != EGL_NO_DISPLAY)
+        {
+            eglMakeCurrent(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 
-        eglTerminate(g_EglDisplay);
+            if (g_EglContext != EGL_NO_CONTEXT)
+                eglDestroyContext(g_EglDisplay, g_EglContext);
+
+            if (g_EglSurface != EGL_NO_SURFACE)
+                eglDestroySurface(g_EglDisplay, g_EglSurface);
+
+            eglTerminate(g_EglDisplay);
+        }
+
+        g_EglDisplay = EGL_NO_DISPLAY;
+        g_EglContext = EGL_NO_CONTEXT;
+        g_EglSurface = EGL_NO_SURFACE;
+        ANativeWindow_release(g_App->window);
+
+        g_Initialized = false;
     }
 
-    g_EglDisplay = EGL_NO_DISPLAY;
-    g_EglContext = EGL_NO_CONTEXT;
-    g_EglSurface = EGL_NO_SURFACE;
-    ANativeWindow_release(g_App->window);
-
-    g_Initialized = false;
+    if (final && g_AppInitialized)
+    {
+        Spectrogrammer_Shutdown();
+        g_AppInitialized = false;
+    }
 }
 
 // Helper functions
@@ -282,24 +338,120 @@ void Shutdown()
 #define JAVA_CALL_DETACH       	jnii->DetachCurrentThread( jniiptr );
 #endif
 
+bool HasAudioPermission()
+{
+    if (g_App == nullptr)
+        return false;
+
+    SETUP_FOR_JAVA_CALL
+    jclass activityClass = env->GetObjectClass(g_App->activity->clazz);
+    jmethodID checkPermission = env->GetMethodID(
+        activityClass, "checkSelfPermission", "(Ljava/lang/String;)I");
+    jstring permission = env->NewStringUTF("android.permission.RECORD_AUDIO");
+    jint result = env->CallIntMethod(g_App->activity->clazz, checkPermission, permission);
+    env->DeleteLocalRef(permission);
+    env->DeleteLocalRef(activityClass);
+    JAVA_CALL_DETACH
+    return result == 0;
+}
+
+void RequestAudioPermission()
+{
+    if (g_PermissionRequested)
+        return;
+    g_PermissionRequested = true;
+
+    SETUP_FOR_JAVA_CALL
+    jclass activityClass = env->GetObjectClass(g_App->activity->clazz);
+    jmethodID requestPermissions = env->GetMethodID(
+        activityClass, "requestPermissions", "([Ljava/lang/String;I)V");
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray permissions = env->NewObjectArray(1, stringClass, nullptr);
+    jstring permission = env->NewStringUTF("android.permission.RECORD_AUDIO");
+    env->SetObjectArrayElement(permissions, 0, permission);
+    env->CallVoidMethod(g_App->activity->clazz, requestPermissions, permissions, 1);
+    env->DeleteLocalRef(permission);
+    env->DeleteLocalRef(permissions);
+    env->DeleteLocalRef(stringClass);
+    env->DeleteLocalRef(activityClass);
+    JAVA_CALL_DETACH
+}
+
 void keep_screen_on() 
 {
-    SETUP_FOR_JAVA_CALL
+    RunCallbackOnUIThread([](void* opaque) {
+        if (!g_App || !g_App->activity) return;
 
-	jclass activityClass = env->FindClass( ENVCALL "android/app/NativeActivity");
+        JNIEnv* env = g_App->activity->env;
+        if (!env) return;
 
-	// Retrieves NativeActivity.
-	jobject lNativeActivity = g_App->activity->clazz;
+        jclass activityClass = env->FindClass("android/app/NativeActivity");
+        if (!activityClass) return;
 
+        jobject lNativeActivity = g_App->activity->clazz;
 
-    jmethodID getWindowMethod = env->GetMethodID(ENVCALL activityClass, "getWindow", "()Landroid/view/Window;");
-    jobject lWindow = env->CallObjectMethod(ENVCALL lNativeActivity, getWindowMethod);
-    jclass ClassWindow = env->FindClass( ENVCALL "android/view/Window");
+        jmethodID getWindowMethod = env->GetMethodID(activityClass, "getWindow", "()Landroid/view/Window;");
+        if (!getWindowMethod) return;
 
-    jmethodID addFlagsMethod = env->GetMethodID(ENVCALL ClassWindow, "addFlags", "(I)V");
+        jobject lWindow = env->CallObjectMethod(lNativeActivity, getWindowMethod);
+        if (!lWindow) return;
 
-    const int FLAG_KEEP_SCREEN_ON = 128;  // 0x80
-    env->CallVoidMethod(ENVCALL lWindow, addFlagsMethod, FLAG_KEEP_SCREEN_ON);
+        jclass ClassWindow = env->FindClass("android/view/Window");
+        if (!ClassWindow) return;
+
+        // 1. Keep Screen On Flag
+        jmethodID addFlagsMethod = env->GetMethodID(ClassWindow, "addFlags", "(I)V");
+        if (addFlagsMethod) {
+            const int FLAG_KEEP_SCREEN_ON = 128; // 0x80
+            env->CallVoidMethod(lWindow, addFlagsMethod, FLAG_KEEP_SCREEN_ON);
+        }
+
+        // 2. Clear Fullscreen & No Limits Flags (ensures status bar space is reserved)
+        jmethodID clearFlagsMethod = env->GetMethodID(ClassWindow, "clearFlags", "(I)V");
+        if (clearFlagsMethod) {
+            const int FLAG_FULLSCREEN = 1024;      // 0x400
+            const int FLAG_LAYOUT_NO_LIMITS = 512; // 0x200
+            env->CallVoidMethod(lWindow, clearFlagsMethod, FLAG_FULLSCREEN | FLAG_LAYOUT_NO_LIMITS);
+        }
+
+        // 3. Prevent rendering in display cutout / camera hole (LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER)
+        jmethodID getAttributesMethod = env->GetMethodID(ClassWindow, "getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
+        if (getAttributesMethod) {
+            jobject lParams = env->CallObjectMethod(lWindow, getAttributesMethod);
+            if (lParams) {
+                jclass ClassLayoutParams = env->FindClass("android/view/WindowManager$LayoutParams");
+                if (ClassLayoutParams) {
+                    jfieldID cutoutModeField = env->GetFieldID(ClassLayoutParams, "layoutInDisplayCutoutMode", "I");
+                    if (cutoutModeField) {
+                        const int LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER = 2;
+                        env->SetIntField(lParams, cutoutModeField, LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER);
+
+                        jmethodID setAttributesMethod = env->GetMethodID(ClassWindow, "setAttributes", "(Landroid/view/WindowManager$LayoutParams;)V");
+                        if (setAttributesMethod) {
+                            env->CallVoidMethod(lWindow, setAttributesMethod, lParams);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Force status bar to show on Android 11+ (API 30+)
+        jmethodID getInsetsControllerMethod = env->GetMethodID(ClassWindow, "getInsetsController", "()Landroid/view/WindowInsetsController;");
+        if (getInsetsControllerMethod) {
+            jobject lController = env->CallObjectMethod(lWindow, getInsetsControllerMethod);
+            if (lController) {
+                jclass ClassInsetsController = env->FindClass("android/view/WindowInsetsController");
+                if (ClassInsetsController) {
+                    jmethodID showMethod = env->GetMethodID(ClassInsetsController, "show", "(I)V");
+                    if (showMethod) {
+                        const int STATUS_BARS = 1; // WindowInsets.Type.statusBars()
+                        env->CallVoidMethod(lController, showMethod, STATUS_BARS);
+                    }
+                }
+            }
+        }
+
+    }, nullptr);
 }
 
 void AndroidDisplayKeyboard(int pShow)

@@ -1,17 +1,19 @@
 #Copyright (c) 2019-2020 <>< Charles Lohr - Under the MIT/x11 or NewBSD License you choose.
 # NO WARRANTY! NO GUARANTEE OF SUPPORT! USE AT YOUR OWN RISK
 
-BUILD_ANDROID:=y
-DEBUG:=n
+BUILD_ANDROID?=n
+DEBUG?=n
+CFLAGS?=-ffunction-sections -fdata-sections -Wall -fvisibility=hidden -fno-exceptions -fno-rtti -fno-sized-deallocation
+LDFLAGS?=-Wl,--gc-sections -Wl,-Map=output.map
 
 ifeq ($(BUILD_ANDROID),y)
-ARCH:=arm64-v8a
+ARCH?=arm64-v8a
 all : makecapk.apk
-.PHONY : push run
 else
-ARCH:=x86_64
+ARCH?=$(shell uname -m)
 all: linux_version
 endif
+.PHONY: all clean push run linux_version test
 
 # WARNING WARNING WARNING!  YOU ABSOLUTELY MUST OVERRIDE THE PROJECT NAME
 # you should also override these parameters, get your own signatre file and make your own manifest.
@@ -23,22 +25,20 @@ LABEL?=$(APPNAME)
 APKFILE?=$(APPNAME).apk
 PACKAGENAME?=org.nanoorg.$(APPNAME)
 SRC=$(SRC_DIR)/main_android.cpp $(SRC_DIR)/android_native_app_glue.c
-SRC+=$(shell find $(SRC_DIR)/audio -name '*.cpp')
+SRC+=$(SRC_DIR)/audio/audio_main.cpp $(SRC_DIR)/audio/audio_recorder.cpp
 else
 SRC=$(SRC_DIR)/main_linux.cpp
-#SRC+=$(SRC_DIR)/audio/audio_driver_sdl.cpp
 CFLAGS+= -DALSA_DRIVER
 SRC+=$(SRC_DIR)/audio/audio_driver_alsa.cpp
 endif
 
 # Add app source files
-SRC+=$(shell find $(SRC_DIR)/app -name '*.cpp')
+SRC+=$(wildcard $(SRC_DIR)/app/*.cpp)
 
-CFLAGS?=-ffunction-sections  -fdata-sections -Wall -fvisibility=hidden -fno-exceptions -fno-rtti -fno-sized-deallocation
 # For really tight compiles....
 CFLAGS += -fvisibility=hidden
+CFLAGS += -std=c++17
 
-LDFLAGS?=-Wl,--gc-sections -Wl,-Map=output.map 
 ifeq ($(DEBUG),y)
 LDFLAGS += -g  
 else
@@ -63,10 +63,9 @@ ifeq ($(BUILD_ANDROID),y)
 #We've tested it with android version 22, 24, 28, 29 and 30 and 32.
 #You can target something like Android 28, but if you set ANDROIDVERSION to say 22, then
 #Your app should (though not necessarily) support all the way back to Android 22. 
-ANDROIDVERSION?=29
+ANDROIDVERSION?=30
 ANDROIDTARGET?=$(ANDROIDVERSION)
 ANDROID_FULLSCREEN?=y
-ANDROIDSRCS:= $(SRC) 
 ADB?=adb
 
 # Search list for where to try to find the SDK
@@ -75,7 +74,7 @@ SDK_LOCATIONS += $(ANDROID_HOME) $(ANDROID_SDK_ROOT) ~/Android/Sdk $(HOME)/Libra
 #Just a little Makefile witchcraft to find the first SDK_LOCATION that exists
 #Then find an ndk folder and build tools folder in there.
 ANDROIDSDK?=$(firstword $(foreach dir, $(SDK_LOCATIONS), $(basename $(dir) ) ) )
-NDK?=$(firstword $(ANDROID_NDK) $(ANDROID_NDK_HOME) $(wildcard $(ANDROIDSDK)/ndk/*) $(wildcard $(ANDROIDSDK)/ndk-bundle/*) )
+NDK?=$(firstword $(ANDROID_NDK) $(ANDROID_NDK_HOME) $(lastword $(wildcard $(ANDROIDSDK)/ndk/*)) $(wildcard $(ANDROIDSDK)/ndk-bundle/*) )
 BUILD_TOOLS?=$(lastword $(wildcard $(ANDROIDSDK)/build-tools/*) )
 
 # fall back to default Android SDL installation location if valid NDK was not found
@@ -94,69 +93,59 @@ ifeq ($(BUILD_TOOLS),)
 $(error BUILD_TOOLS directory not found)
 endif
 
-testsdk :
-	@echo "SDK:\t\t" $(ANDROIDSDK)
-	@echo "NDK:\t\t" $(NDK)
-	@echo "Build Tools:\t" $(BUILD_TOOLS)
 
 CFLAGS+=-Os -DANDROID -DAPPNAME=\"$(APPNAME)\"
-ifeq (ANDROID_FULLSCREEN,y)
+ifeq ($(ANDROID_FULLSCREEN),y)
 CFLAGS +=-DANDROID_FULLSCREEN 
 endif
 
-CFLAGS+= -I$(NDK)/sysroot/usr/include -I$(NDK)/sysroot/usr/include/android -I$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/include -I$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/include/android -fPIC -I$(RAWDRAWANDROID) -DANDROIDVERSION=$(ANDROIDVERSION) 
+CFLAGS+= -I$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/include -fPIC -DANDROIDVERSION=$(ANDROIDVERSION)
 endif
 
 CFLAGS+= -I$(SRC_DIR) -I$(SRC_DIR)/app -I$(SRC_DIR)/audio 
-CFLAGS+= -Isubmodules/kissfft -Isubmodules/imgui -Isubmodules/rawdraw 
+CFLAGS+= -Isubmodules/kissfft -Isubmodules/imgui
 
 ifeq ($(BUILD_ANDROID),y)
 LDFLAGS += -landroid -lGLESv3 -lEGL  -llog -lOpenSLES 
-LDFLAGS += -shared -uANativeActivity_onCreate
+LDFLAGS += -shared -uANativeActivity_onCreate -static-libstdc++
+LDFLAGS += -fuse-ld=$(LD)
 AAPT:=$(BUILD_TOOLS)/aapt
 endif
 
 ########################### ARCHITECTURE ######################################
 
-ifeq ($(ARCH),arm64-v8a)
-CFLAGS_2+=-m64
+ifeq ($(BUILD_ANDROID),y)
+AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/llvm-ar
+endif
 
-LDFLAGS+= -L$(NDK)/sources/cxx-stl/llvm-libc++/libs/arm64-v8a/ -lc++abi 
-LDFLAGS+= `pkg-config --libs libs/$(ARCH)/kissfft/lib64/pkgconfig/kissfft-float.pc`
+ifeq ($(ARCH),arm64-v8a)
 ARCH_DIR=$(ARCH)
-AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android-ar
-LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android-ld
 CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang
+CXX:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang++
+LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/ld.lld
 endif
 
 ifeq ($(ARCH),armeabi-v7a)
 CFLAGS_2+=-mfloat-abi=softfp -m32
 
-LDFLAGS+= -L$(NDK)/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a/ -lc++abi 
-LDFLAGS+= `pkg-config --libs libs/armeabi-v7a/kissfft/lib64/pkgconfig/kissfft-float.pc`
 ARCH_DIR=arm
-AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/arm-linux-androideabi-ar
-LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/arm-linux-androideabi-ld
 CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-androideabi$(ANDROIDVERSION)-clang
+CXX:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-androideabi$(ANDROIDVERSION)-clang++
 endif
 
-ifeq ($(ARCH),x86_64)
-LDFLAGS += -lGL `pkg-config --static --libs glfw3` 
-LDFLAGS += -lX11 -lpthread -lXinerama -lXext -lGL -lm -ldl -lstdc++
-LDFLAGS += -lasound
-#LDFLAGS += -lSDL2
-LDFLAGS += `pkg-config --libs libs/x86_64/kissfft/lib64/pkgconfig/kissfft-float.pc`
+testsdk :
+	@echo "CXX Path:\t" $(shell which $(CXX))
+	@echo "LD Path:\t" $(shell which $(LD))	
+	@echo "SDK:\t\t" $(ANDROIDSDK)
+	@echo "NDK:\t\t" $(NDK)
+	@echo "Build Tools:\t" $(BUILD_TOOLS)
+
+
+ifneq ($(BUILD_ANDROID),y)
+LDFLAGS += $(shell pkg-config --libs glfw3) -lGL -lasound -lpthread
 ARCH_DIR=$(ARCH)
-CFLAGS += `pkg-config --cflags glfw3` 
-CFLAGS += -std=c++11
+CFLAGS += $(shell pkg-config --cflags glfw3)
 CFLAGS += -Wall -Wformat
-#CFLAGS_2:=-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32
-CFLAGS_2:=-march=x86-64 -msse4.2 -mpopcnt -m64 -mtune=intel#CFLAGS_x86:=-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32
-
-#AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/i686-linux-android$(ANDROIDVERSION)-ar
-#LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/i686-linux-android$(ANDROIDVERSION)-ld
-#CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/x86_64-linux-android$(ANDROIDVERSION)-clang
-
 endif
 
 LDFLAGS += -lm  
@@ -178,15 +167,20 @@ folders:
 	mkdir -p makecapk/lib/x86
 	mkdir -p makecapk/lib/x86_64
 
-kissfft:
-	@if [ -d "libs/$(ARCH)/kissfft" ]; then \
-		echo "KissFFT already built libs/$(ARCH)/kissfft"; \
-	else \
-		make -C submodules/kissfft PREFIX=../../libs/$(ARCH)/kissfft LD=$(LD) CC=$(CC) AR=$(AR) KISSFFT_DATATYPE=float KISSFFT_STATIC=1 KISSFFT_TOOLS=0 KISSFFT_OPENMP=0 CFLAGS=-DNDEBUG=1 install; \
-		make -C submodules/kissfft clean; \
-	fi
+################## KISSFFT / IMGUI
 
-################## IMGUI
+KISSFFT_LIB := libs/$(ARCH)/kissfft/libkissfft.a
+IMGUI_LIB := libs/$(ARCH)/imgui/libimgui.a
+
+KISSFFT_SRCS := kiss_fft.c kiss_fftr.c
+KISSFFT_CFLAGS := $(filter-out -std=c++17 -fno-exceptions -fno-rtti -fno-sized-deallocation,$(CFLAGS))
+
+libs/$(ARCH)/kissfft/objs/%.o : submodules/kissfft/%.c
+	mkdir -p libs/$(ARCH)/kissfft/objs
+	$(CC) -c $(KISSFFT_CFLAGS) $(CFLAGS_2) -o $@ $<
+
+$(KISSFFT_LIB) : $(addprefix libs/$(ARCH)/kissfft/objs/,$(subst .c,.o,$(KISSFFT_SRCS)))
+	$(AR) rcs $@ $^
 
 IMGUI_SRCS := imgui.cpp imgui_draw.cpp imgui_tables.cpp imgui_widgets.cpp backends/imgui_impl_opengl3.cpp
 ifeq ($(BUILD_ANDROID),y)
@@ -198,16 +192,16 @@ endif
 libs/$(ARCH)/imgui/objs/%.o : submodules/imgui/%.cpp
 	mkdir -p libs/$(ARCH)/imgui/objs
 	mkdir -p libs/$(ARCH)/imgui/objs/backends
-	$(CC) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_2) $^ -o $@  
+	$(CXX) -c $(CFLAGS) -Isubmodules/imgui $(CFLAGS_2) $< -o $@
 
-libs/$(ARCH)/imgui/libimgui.a : $(addprefix libs/$(ARCH)/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS)))
-	ar ru $@ $^
+$(IMGUI_LIB) : $(addprefix libs/$(ARCH)/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS)))
+	$(AR) rcs $@ $^
 
 ###############
 
-makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(ANDROIDSRCS) libs/$(ARCH)/imgui/libimgui.a | kissfft
+makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB)
 	mkdir -p makecapk/lib/$(ARCH_DIR)	
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CFLAGS_2) -o $@ $(ANDROIDSRCS) libs/$(ARCH)/imgui/libimgui.a -L$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/$(ARCH_DIR)-linux-android/$(ANDROIDVERSION) $(LDFLAGS) 
+	$(CXX) $(CFLAGS) $(CFLAGS_2) -o $@ $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB) $(LDFLAGS)
 
 #We're really cutting corners.  You should probably use resource files.. Replace android:label="@string/app_name" and add a resource file.
 #Then do this -S Sources/res on the aapt line.
@@ -219,20 +213,36 @@ makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(ANDROIDSRCS) libs/$(ARCH)/imgui/li
 #jarsigner -verify -verbose -certs makecapk.apk
 
 
-linux_version : $(SRC) libs/$(ARCH)/imgui/libimgui.a | kissfft
-	echo $@ $^
-	$(CC) $(CFLAGS) -o $@ $^  $(LDFLAGS) 
-	mv $@ $(APPNAME)
+linux_version : $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB)
+	$(CXX) $(CFLAGS) $(CFLAGS_2) -o $(APPNAME) $^ $(LDFLAGS)
+
+TEST_SRCS := tests/test_all.cpp \
+	$(SRC_DIR)/app/auformat.cpp \
+	$(SRC_DIR)/app/ChunkerProcessor.cpp \
+	$(SRC_DIR)/app/fft.cpp \
+	$(SRC_DIR)/app/scale.cpp \
+	$(SRC_DIR)/app/ScaleBufferY.cpp \
+	$(SRC_DIR)/app/SpectrumFile.cpp \
+	$(SRC_DIR)/audio/audio_driver_alsa.cpp
+
+test_runner : $(TEST_SRCS) $(KISSFFT_LIB)
+	$(CXX) -g -O0 -std=c++17 -DALSA_DRIVER \
+		-I$(SRC_DIR) -I$(SRC_DIR)/app -I$(SRC_DIR)/audio -Isubmodules/kissfft \
+		-o $@ $(TEST_SRCS) $(KISSFFT_LIB) -lasound -lpthread -lm
+
+test : test_runner
+	./test_runner
 
 makecapk.apk : makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so $(SRC_DIR)/AndroidManifest.xml 
-	mkdir -p makecapk/assets
+	mkdir -p makecapk/assets makecapk/res
+	cp -a $(SRC_DIR)/res/. makecapk/res/
 	#cp -r $(SRC_DIR)/assets/* makecapk/assets
 	rm -rf temp.apk
-	$(AAPT) package -f -F temp.apk -I $(ANDROIDSDK)/platforms/android-$(ANDROIDVERSION)/android.jar -M $(SRC_DIR)/AndroidManifest.xml -S $(SRC_DIR)/res -A makecapk/assets -v --target-sdk-version $(ANDROIDTARGET)
+	$(AAPT) package -f -F temp.apk -I $(ANDROIDSDK)/platforms/android-$(ANDROIDVERSION)/android.jar -M $(SRC_DIR)/AndroidManifest.xml -S makecapk/res -A makecapk/assets -v --target-sdk-version $(ANDROIDTARGET)
 	unzip -o temp.apk -d makecapk
 	rm -rf makecapk.apk
 	# We use -4 here for the compression ratio, as it's a good balance of speed and size. -9 will make a slightly smaller executable but takes longer to build
-	cd makecapk && zip -D4r ../makecapk.apk . && zip -D0r ../makecapk.apk ./resources.arsc $(SRC_DIR)/AndroidManifest.xml
+	cd makecapk && zip -D4r ../makecapk.apk . && zip -D0r ../makecapk.apk ./resources.arsc ./AndroidManifest.xml
 	# jarsigner is only necessary when targetting Android < 7.0
 	#jarsigner -sigalg SHA1withRSA -digestalg SHA1 -verbose -keystore $(KEYSTOREFILE) -storepass $(STOREPASS) makecapk.apk $(ALIASNAME)
 	rm -rf $(APKFILE)
@@ -270,6 +280,7 @@ run : push
 	$(ADB) shell am start -n $(PACKAGENAME)/$(ACTIVITYNAME)
 
 clean :
-	rm -rf AndroidManifest.xml temp.apk makecapk.apk makecapk $(APKFILE)
+	rm -rf temp.apk makecapk.apk $(APKFILE)
+	rm -rf makecapk/assets makecapk/lib makecapk/META-INF makecapk/AndroidManifest.xml makecapk/resources.arsc
 	rm -rf libs
-	rm -rf linux_version
+	rm -rf linux_version $(APPNAME) test_runner

@@ -8,10 +8,6 @@
 //#include <cstdarg>
 #include <GLES3/gl3.h>
 #include <GLFW/glfw3.h> 
-#include <byteswap.h>
-#include <errno.h>
-#include <fcntl.h>
-
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
@@ -59,7 +55,7 @@ int main( int argc, char ** argv )
 #endif
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(1080/2, 1920/2, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(540, 960, "Spectrogrammer", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
@@ -87,7 +83,10 @@ int main( int argc, char ** argv )
     bool keepRunning = true;
     while (!glfwWindowShouldClose(window) && keepRunning)
 	{
-		glfwPollEvents();
+        if (Spectrogrammer_ShouldAnimate())
+            glfwPollEvents();
+        else
+            glfwWaitEvents();
         if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
         {
             ImGui_ImplGlfw_Sleep(10);

@@ -27,8 +27,7 @@
 #include <android/log.h>
 #include <android/native_activity.h>
 
-#include "webview_native_activity.h"
-struct android_app * gapp;
+struct android_app * g_App = NULL;
 
 #define LOGI(...) ((void)printf(__VA_ARGS__))
 #define LOGE(...) ((void)printf(__VA_ARGS__))
@@ -239,7 +238,7 @@ static void process_input(struct android_app* app, struct android_poll_source* s
 static int process_ui( int dummy1, int dummy2, void * dummy3 ) {
 	// Can't trust parameters in UI thread callback.
 	MainThreadCallbackProps rep;
-    read(gapp->uimsgread, &rep, sizeof(rep));
+    read(g_App->uimsgread, &rep, sizeof(rep));
 	rep.callback( rep.opaque );
 	return 1;
 }
@@ -330,7 +329,7 @@ static struct android_app* android_app_create(ANativeActivity* activity,
     android_app->uimsgread = msgpipemain[0];
     android_app->uimsgwrite = msgpipemain[1];
     ALooper * looper = ALooper_forThread();
-    ALooper_addFd(looper, android_app->uimsgread, LOOPER_ID_MAIN_THREAD, ALOOPER_EVENT_INPUT, process_ui, gapp);  //NOTE: Cannot use NULL callback
+    ALooper_addFd(looper, android_app->uimsgread, LOOPER_ID_MAIN_THREAD, ALOOPER_EVENT_INPUT, process_ui, g_App);  //NOTE: Cannot use NULL callback
     android_app->looperui = looper;
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -521,6 +520,6 @@ void RunCallbackOnUIThread( void (*callback)(void *), void * opaque )
 	MainThreadCallbackProps gpdata;
 	gpdata.callback = callback;
 	gpdata.opaque = opaque;
-	write(gapp->uimsgwrite, &gpdata, sizeof(gpdata) );	
+	write(g_App->uimsgwrite, &gpdata, sizeof(gpdata) );	
 }
 

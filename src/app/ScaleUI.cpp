@@ -86,7 +86,6 @@ void draw_scale_y(ImRect frame_bb, float min, float max)
     ImGuiWindow* window = ImGui::GetCurrentWindow();
 
     ImGui::PushClipRect(frame_bb.Min, frame_bb.Max, true);
-    const float ref = 32768;
 
     for (int dec=0;dec>-130;dec-=25)
     {

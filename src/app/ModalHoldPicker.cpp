@@ -1,6 +1,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
+#include <string>
 #include "imgui.h"
 #include "ModalHoldPicker.h"
 #include "FilePicker.h"
@@ -37,9 +38,7 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
                 pSelectedFilename = pTmp->pStr;
 
                 char filename[1024];
-                strcpy(filename, pWorkingDirectory);
-                strcat(filename, "/");
-                strcat(filename, pTmp->pStr);
+                snprintf(filename, sizeof(filename), "%s/%s", pWorkingDirectory, pTmp->pStr);
 
                 res = LoadSpectrum(filename, pBuffer, sample_rate, fft_size);
             }
@@ -67,9 +66,9 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         tm_info = localtime(&timer);
 
         char filename[1024];
-        strcpy(filename, pWorkingDirectory);
-        strcat(filename, "/");
-        strftime(&filename[strlen(filename)], 1024, "%Y%m%d-%H%M%S_data.spec", tm_info);
+        char timestamp[64];
+        strftime(timestamp, sizeof(timestamp), "%Y%m%d-%H%M%S_data.spec", tm_info);
+        snprintf(filename, sizeof(filename), "%s/%s", pWorkingDirectory, timestamp);
 
         res = SaveSpectrum(filename, pBuffer, *sample_rate, *fft_size);
 
@@ -103,7 +102,9 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         ImGui::Separator();
         if (ImGui::Button("OK", ImVec2(120, 0))) 
         { 
-            rename(pSelectedFilename, newFilename);
+            std::string oldPath = std::string(pWorkingDirectory) + "/" + pSelectedFilename;
+            std::string newPath = std::string(pWorkingDirectory) + "/" + newFilename;
+            rename(oldPath.c_str(), newPath.c_str());
             RefreshFiles(pWorkingDirectory);
             ImGui::CloseCurrentPopup(); 
         }
@@ -128,9 +129,7 @@ bool HoldPicker(const char *pWorkingDirectory, bool bCanSave, BufferIODouble *pB
         if (ImGui::Button("OK", ImVec2(120, 0))) 
         { 
             char filename[1024];
-            strcpy(filename, pWorkingDirectory);
-            strcat(filename, "/");
-            strcat(filename, pSelectedFilename);                    
+            snprintf(filename, sizeof(filename), "%s/%s", pWorkingDirectory, pSelectedFilename);
             remove(filename);
 
             RefreshFiles(pWorkingDirectory);

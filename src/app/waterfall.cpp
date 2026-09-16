@@ -215,9 +215,9 @@ void Draw_vertical_scale(ImRect frame_bb, float seconds_per_row)
 
 void Shutdown_waterfall()
 {
-    glFlush();
     if (image_texture!=0xffffffff)
     {
+        glFlush();
         glDeleteTextures(1, &image_texture);
         image_texture = 0xffffffff;
         texture_width = -1;

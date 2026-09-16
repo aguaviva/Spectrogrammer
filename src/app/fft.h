@@ -13,7 +13,7 @@ class myFFT : public Processor
 {
     kiss_fft_cpx *m_out_cpx = nullptr;
 
-    kiss_fftr_cfg m_cfg;
+    kiss_fftr_cfg m_cfg = nullptr;
 
     BufferIODouble m_pInput_samples;
     BufferIODouble m_pOutput_bins;
@@ -40,7 +40,11 @@ class myFFT : public Processor
 
     void deinit()
     {
-        kiss_fftr_free(m_cfg);
+        if (m_cfg != nullptr)
+            kiss_fftr_free(m_cfg);
+        free(m_out_cpx);
+        m_cfg = nullptr;
+        m_out_cpx = nullptr;
     }
 
 public:

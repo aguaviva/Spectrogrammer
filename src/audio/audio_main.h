@@ -8,6 +8,7 @@ void Audio_deinit();
 float Audio_getSampleRate();
 void Audio_getBufferQueues(AudioQueue **pFreeQ, AudioQueue **pRecQ);
 void Audio_startPlay();
+void Audio_pausePlay();
 
 
 
