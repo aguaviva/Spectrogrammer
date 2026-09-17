@@ -37,7 +37,6 @@ float min_freq = -1.0f;
 float bin_width = -1.0f;
 
 // perf counters
-int droppedBuffers=0;
 int iterationsPerChunk = 0;
 int processedChunks = 0;
 
@@ -45,10 +44,8 @@ int processedChunks = 0;
 int averaging = 1;
 float fraction_overlap = 2.0f/3.0f; // we are using hanning
 float decay = .5f;
-float volume = 1;
 bool logX=true, logY=true;
 bool play = true;
-bool hold = false;
 float axis_y_min = -130;
 float axis_y_max = -20;
 float axis_freq_min;
@@ -249,9 +246,16 @@ bool Spectrogrammer_MainLoopStep()
     ImGui::Begin("imgui window", NULL, window_flags); // create a window
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0));
 
-    ImGui::Dummy(ImVec2(0.0f, 20.0f));
-
     ImGui::Checkbox("Play", &play);
+    static bool play_was = true;
+    if (play != play_was)
+    {
+        if (play)
+            Audio_startPlay();
+        else
+            Audio_pausePlay();
+        play_was = play;
+    }
 
     ImGui::SameLine();
 

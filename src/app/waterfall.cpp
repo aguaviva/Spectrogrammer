@@ -10,8 +10,7 @@
 //#include <android/asset_manager.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
-#include <stdlib.h>
-#include <math.h>
+#include <string.h>
 #include "waterfall.h"
 #include "colormaps.h"
 
@@ -69,23 +68,16 @@ void Init_waterfall(int16_t width, int16_t height)
     glBindTexture(GL_TEXTURE_2D, image_texture);
 
     // Setup filtering parameters for display
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    uint16_t* image_data = (uint16_t*)malloc(texture_width * texture_height * 2);
+    size_t bytes = (size_t)texture_width * (size_t)texture_height * 2;
+    uint16_t* image_data = (uint16_t*)calloc(1, bytes);
     if (image_data!=NULL)
     {
-        
-        for (int y=0;y<texture_height;y++)
-        {
-            for (int x=0;x<texture_width;x++)
-            {
-                image_data[x+y*texture_width] = 0;
-            }
-        }
-
-        // Upload pixels into texture
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_width, texture_height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, image_data);   
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_width, texture_height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, image_data);
         glFlush();
         free(image_data);
     }
@@ -110,16 +102,23 @@ void update_texture_row(uint16_t *image_data)
 
 void Draw_update(float *pData, uint32_t size)
 {
-    if (image_texture==0xffffffff)
+    if (image_texture==0xffffffff || pData==NULL || texture_width<=0)
         return;
 
-    uint16_t image_data[4*1024];
-    for(int i=0;i<texture_width;i++)
-    {
+    int n = texture_width;
+    if ((uint32_t)n > size)
+        n = (int)size;
+
+    uint16_t *image_data = (uint16_t*)malloc((size_t)texture_width * 2);
+    if (image_data==NULL)
+        return;
+    for(int i=0;i<n;i++)
         image_data[i] = GetColorMap(pData[i] *255);
-    }
+    for(int i=n;i<texture_width;i++)
+        image_data[i] = 0;
 
     update_texture_row(image_data);
+    free(image_data);
 }
 
 void Draw_waterfall(ImRect frame_bb)

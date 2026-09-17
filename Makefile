@@ -4,32 +4,44 @@
 BUILD_ANDROID?=n
 DEBUG?=n
 CFLAGS?=-ffunction-sections -fdata-sections -Wall -fvisibility=hidden -fno-exceptions -fno-rtti -fno-sized-deallocation
-LDFLAGS?=-Wl,--gc-sections -Wl,-Map=output.map
+LDFLAGS?=-Wl,--gc-sections -Wl,-Map=$(ARCH).map
 
 ifeq ($(BUILD_ANDROID),y)
 ARCH?=arm64-v8a
-all : makecapk.apk
+ANDROID_ABIS?=$(ARCH)
 else
 ARCH?=$(shell uname -m)
-all: linux_version
 endif
-.PHONY: all clean push run linux_version test
 
 # WARNING WARNING WARNING!  YOU ABSOLUTELY MUST OVERRIDE THE PROJECT NAME
 # you should also override these parameters, get your own signatre file and make your own manifest.
 APPNAME?=Spectrogrammer
 SRC_DIR?=./src
+BINFILE:=$(APPNAME)-$(ARCH)
+ifeq ($(BUILD_ANDROID),y)
+APKFILE?=$(APPNAME)-$(ARCH).apk
+endif
+
+ifndef INNER
+ifeq ($(BUILD_ANDROID),y)
+all: $(foreach abi,$(ANDROID_ABIS),$(APPNAME)-$(abi).apk)
+else
+all: linux_version
+endif
+endif
+.PHONY: all clean push run linux_version test testsdk
 
 ifeq ($(BUILD_ANDROID),y)
 LABEL?=$(APPNAME)
-APKFILE?=$(APPNAME).apk
 PACKAGENAME?=org.nanoorg.$(APPNAME)
-SRC=$(SRC_DIR)/main_android.cpp $(SRC_DIR)/android_native_app_glue.c
+SRC=$(SRC_DIR)/main_android.cpp
 SRC+=$(SRC_DIR)/audio/audio_main.cpp $(SRC_DIR)/audio/audio_recorder.cpp
+GLUE_SRC=$(SRC_DIR)/android_native_app_glue.c
 else
 SRC=$(SRC_DIR)/main_linux.cpp
 CFLAGS+= -DALSA_DRIVER
 SRC+=$(SRC_DIR)/audio/audio_driver_alsa.cpp
+GLUE_SRC=
 endif
 
 # Add app source files
@@ -40,9 +52,11 @@ CFLAGS += -fvisibility=hidden
 CFLAGS += -std=c++17
 
 ifeq ($(DEBUG),y)
-LDFLAGS += -g  
+LDFLAGS += -g
+DEBUGGABLE?=true
 else
 LDFLAGS += -s -Os
+DEBUGGABLE?=false
 endif
 
 UNAME := $(shell uname)
@@ -69,7 +83,7 @@ ANDROID_FULLSCREEN?=y
 ADB?=adb
 
 # Search list for where to try to find the SDK
-SDK_LOCATIONS += $(ANDROID_HOME) $(ANDROID_SDK_ROOT) ~/Android/Sdk $(HOME)/Library/Android/sdk
+SDK_LOCATIONS += $(ANDROID_HOME) $(ANDROID_SDK_ROOT) $(HOME)/Android/Sdk $(HOME)/Library/Android/sdk
 
 #Just a little Makefile witchcraft to find the first SDK_LOCATION that exists
 #Then find an ndk folder and build tools folder in there.
@@ -93,6 +107,14 @@ ifeq ($(BUILD_TOOLS),)
 $(error BUILD_TOOLS directory not found)
 endif
 
+ANDROID_JAR:=$(wildcard $(ANDROIDSDK)/platforms/android-$(ANDROIDVERSION)/android.jar)
+ifeq ($(ANDROID_JAR),)
+ANDROID_JAR:=$(lastword $(sort $(wildcard $(ANDROIDSDK)/platforms/android-*/android.jar)))
+endif
+ifeq ($(ANDROID_JAR),)
+$(error android.jar not found under $(ANDROIDSDK)/platforms)
+endif
+
 
 CFLAGS+=-Os -DANDROID -DAPPNAME=\"$(APPNAME)\"
 ifeq ($(ANDROID_FULLSCREEN),y)
@@ -108,7 +130,6 @@ CFLAGS+= -Isubmodules/kissfft -Isubmodules/imgui
 ifeq ($(BUILD_ANDROID),y)
 LDFLAGS += -landroid -lGLESv3 -lEGL  -llog -lOpenSLES 
 LDFLAGS += -shared -uANativeActivity_onCreate -static-libstdc++
-LDFLAGS += -fuse-ld=$(LD)
 AAPT:=$(BUILD_TOOLS)/aapt
 endif
 
@@ -118,27 +139,34 @@ ifeq ($(BUILD_ANDROID),y)
 AR:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/llvm-ar
 endif
 
-ifeq ($(ARCH),arm64-v8a)
-ARCH_DIR=$(ARCH)
-CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang
-CXX:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang++
+ifeq ($(BUILD_ANDROID),y)
+ARCH_DIR:=$(ARCH)
 LD:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/ld.lld
-endif
-
 ifeq ($(ARCH),armeabi-v7a)
-CFLAGS_2+=-mfloat-abi=softfp -m32
-
-ARCH_DIR=arm
-CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-androideabi$(ANDROIDVERSION)-clang
-CXX:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/armv7a-linux-androideabi$(ANDROIDVERSION)-clang++
+ANDROID_TRIPLE:=armv7a-linux-androideabi
+else ifeq ($(ARCH),x86)
+ANDROID_TRIPLE:=i686-linux-android
+else ifeq ($(ARCH),x86_64)
+ANDROID_TRIPLE:=x86_64-linux-android
+else
+ANDROID_TRIPLE:=aarch64-linux-android
+endif
+CC:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/$(ANDROID_TRIPLE)$(ANDROIDVERSION)-clang
+CXX:=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/$(ANDROID_TRIPLE)$(ANDROIDVERSION)-clang++
+LDFLAGS += -fuse-ld=$(LD)
 endif
 
 testsdk :
-	@echo "CXX Path:\t" $(shell which $(CXX))
-	@echo "LD Path:\t" $(shell which $(LD))	
+	@echo "ARCH:\t\t" $(ARCH)
+	@echo "ANDROID_ABIS:\t" $(ANDROID_ABIS)
+	@echo "BINFILE:\t" $(BINFILE)
+	@echo "APKFILE:\t" $(APKFILE)
+	@echo "CXX:\t\t" $(CXX)
+	@echo "LD:\t\t" $(LD)
 	@echo "SDK:\t\t" $(ANDROIDSDK)
 	@echo "NDK:\t\t" $(NDK)
 	@echo "Build Tools:\t" $(BUILD_TOOLS)
+	@echo "android.jar:\t" $(ANDROID_JAR)
 
 
 ifneq ($(BUILD_ANDROID),y)
@@ -175,6 +203,15 @@ IMGUI_LIB := libs/$(ARCH)/imgui/libimgui.a
 KISSFFT_SRCS := kiss_fft.c kiss_fftr.c
 KISSFFT_CFLAGS := $(filter-out -std=c++17 -fno-exceptions -fno-rtti -fno-sized-deallocation,$(CFLAGS))
 
+ifeq ($(BUILD_ANDROID),y)
+GLUE_OBJ := libs/$(ARCH)/android_native_app_glue.o
+libs/$(ARCH)/android_native_app_glue.o : $(GLUE_SRC)
+	mkdir -p libs/$(ARCH)
+	$(CC) -c $(KISSFFT_CFLAGS) -o $@ $<
+else
+GLUE_OBJ :=
+endif
+
 libs/$(ARCH)/kissfft/objs/%.o : submodules/kissfft/%.c
 	mkdir -p libs/$(ARCH)/kissfft/objs
 	$(CC) -c $(KISSFFT_CFLAGS) $(CFLAGS_2) -o $@ $<
@@ -199,9 +236,34 @@ $(IMGUI_LIB) : $(addprefix libs/$(ARCH)/imgui/objs/,$(subst .cpp,.o,$(IMGUI_SRCS
 
 ###############
 
-makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB)
-	mkdir -p makecapk/lib/$(ARCH_DIR)	
-	$(CXX) $(CFLAGS) $(CFLAGS_2) -o $@ $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB) $(LDFLAGS)
+ifndef INNER
+ifeq ($(BUILD_ANDROID),y)
+define BUILD_ABI_APK
+$(APPNAME)-$(1).apk:
+	$$(MAKE) BUILD_ANDROID=y INNER=1 ARCH=$(1) $$@
+endef
+$(foreach abi,$(ANDROID_ABIS),$(eval $(call BUILD_ABI_APK,$(abi))))
+endif
+else
+STAGE := makecapk-$(ARCH)
+makecapk-$(ARCH)/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(SRC) $(GLUE_OBJ) $(IMGUI_LIB) $(KISSFFT_LIB)
+	mkdir -p makecapk-$(ARCH)/lib/$(ARCH_DIR)
+	$(CXX) $(CFLAGS) $(CFLAGS_2) -o $@ $(SRC) $(GLUE_OBJ) $(IMGUI_LIB) $(KISSFFT_LIB) $(LDFLAGS)
+
+$(APKFILE) : makecapk-$(ARCH)/lib/$(ARCH)/lib$(APPNAME).so $(SRC_DIR)/AndroidManifest.xml
+	mkdir -p $(STAGE)/assets $(STAGE)/res
+	cp -a $(SRC_DIR)/res/. $(STAGE)/res/
+	rm -f temp-$(ARCH).apk $(ARCH)-unsigned.apk
+	$(AAPT) package -f -F temp-$(ARCH).apk -I $(ANDROID_JAR) -M $(SRC_DIR)/AndroidManifest.xml -S $(STAGE)/res -A $(STAGE)/assets -v --target-sdk-version $(ANDROIDTARGET)
+	unzip -o temp-$(ARCH).apk -d $(STAGE)
+	cd $(STAGE) && zip -D4r ../$(ARCH)-unsigned.apk AndroidManifest.xml resources.arsc res assets lib/$(ARCH)
+	cd $(STAGE) && zip -D0r ../$(ARCH)-unsigned.apk ./resources.arsc ./AndroidManifest.xml
+	rm -f $(APKFILE)
+	$(BUILD_TOOLS)/zipalign -v 4 $(ARCH)-unsigned.apk $(APKFILE)
+	$(BUILD_TOOLS)/apksigner sign --key-pass pass:$(STOREPASS) --ks-pass pass:$(STOREPASS) --ks $(KEYSTOREFILE) $(APKFILE)
+	rm -f temp-$(ARCH).apk $(ARCH)-unsigned.apk
+	@ls -l $(APKFILE)
+endif
 
 #We're really cutting corners.  You should probably use resource files.. Replace android:label="@string/app_name" and add a resource file.
 #Then do this -S Sources/res on the aapt line.
@@ -214,7 +276,7 @@ makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so : $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB)
 
 
 linux_version : $(SRC) $(IMGUI_LIB) $(KISSFFT_LIB)
-	$(CXX) $(CFLAGS) $(CFLAGS_2) -o $(APPNAME) $^ $(LDFLAGS)
+	$(CXX) $(CFLAGS) $(CFLAGS_2) -o $(BINFILE) $^ $(LDFLAGS)
 
 TEST_SRCS := tests/test_all.cpp \
 	$(SRC_DIR)/app/auformat.cpp \
@@ -233,54 +295,35 @@ test_runner : $(TEST_SRCS) $(KISSFFT_LIB)
 test : test_runner
 	./test_runner
 
-makecapk.apk : makecapk/lib/$(ARCH_DIR)/lib$(APPNAME).so $(SRC_DIR)/AndroidManifest.xml 
-	mkdir -p makecapk/assets makecapk/res
-	cp -a $(SRC_DIR)/res/. makecapk/res/
-	#cp -r $(SRC_DIR)/assets/* makecapk/assets
-	rm -rf temp.apk
-	$(AAPT) package -f -F temp.apk -I $(ANDROIDSDK)/platforms/android-$(ANDROIDVERSION)/android.jar -M $(SRC_DIR)/AndroidManifest.xml -S makecapk/res -A makecapk/assets -v --target-sdk-version $(ANDROIDTARGET)
-	unzip -o temp.apk -d makecapk
-	rm -rf makecapk.apk
-	# We use -4 here for the compression ratio, as it's a good balance of speed and size. -9 will make a slightly smaller executable but takes longer to build
-	cd makecapk && zip -D4r ../makecapk.apk . && zip -D0r ../makecapk.apk ./resources.arsc ./AndroidManifest.xml
-	# jarsigner is only necessary when targetting Android < 7.0
-	#jarsigner -sigalg SHA1withRSA -digestalg SHA1 -verbose -keystore $(KEYSTOREFILE) -storepass $(STOREPASS) makecapk.apk $(ALIASNAME)
-	rm -rf $(APKFILE)
-	$(BUILD_TOOLS)/zipalign -v 4 makecapk.apk $(APKFILE)
-	#Using the apksigner in this way is only required on Android 30+
-	$(BUILD_TOOLS)/apksigner sign --key-pass pass:$(STOREPASS) --ks-pass pass:$(STOREPASS) --ks $(KEYSTOREFILE) $(APKFILE)
-	rm -rf temp.apk
-	rm -rf makecapk.apk
-	@ls -l $(APKFILE)
-
 manifest: $(SRC_DIR)/AndroidManifest.xml
 
-$(SRC_DIR)/AndroidManifest.xml :
+$(SRC_DIR)/AndroidManifest.xml : $(SRC_DIR)/AndroidManifest.xml.template
 	rm -rf $(SRC_DIR)/AndroidManifest.xml
 	PACKAGENAME=$(PACKAGENAME) \
 		ANDROIDVERSION=$(ANDROIDVERSION) \
 		ANDROIDTARGET=$(ANDROIDTARGET) \
 		APPNAME=$(APPNAME) \
-		LABEL=$(LABEL) envsubst '$$ANDROIDTARGET $$ANDROIDVERSION $$APPNAME $$PACKAGENAME $$LABEL' \
+		LABEL=$(LABEL) \
+		DEBUGGABLE=$(DEBUGGABLE) envsubst '$$ANDROIDTARGET $$ANDROIDVERSION $$APPNAME $$PACKAGENAME $$LABEL $$DEBUGGABLE' \
 		< $(SRC_DIR)/AndroidManifest.xml.template > $(SRC_DIR)/AndroidManifest.xml
 
 uninstall : 
 	($(ADB) uninstall $(PACKAGENAME))||true
 
-push : makecapk.apk
+push : $(APKFILE)
 	@echo "Installing" $(PACKAGENAME)
 	$(ADB) install -r $(APKFILE)
 
 logcat: push
-	$(ADB) logcat | $(NDK)/ndk-stack -sym makecapk/lib/arm64-v8a/libSpectrogrammer.so
-	#$(ADB) logcat | $(NDK)/ndk-stack -sym makecapk/lib/armeabi-v7a/libSpectrogrammer.so
+	$(ADB) logcat | $(NDK)/ndk-stack -sym makecapk-$(ARCH)/lib/$(ARCH)/lib$(APPNAME).so
 
 run : push
 	$(eval ACTIVITYNAME:=$(shell $(AAPT) dump badging $(APKFILE) | grep "launchable-activity" | cut -f 2 -d"'"))
 	$(ADB) shell am start -n $(PACKAGENAME)/$(ACTIVITYNAME)
 
 clean :
-	rm -rf temp.apk makecapk.apk $(APKFILE)
-	rm -rf makecapk/assets makecapk/lib makecapk/META-INF makecapk/AndroidManifest.xml makecapk/resources.arsc
+	rm -rf temp.apk temp-*.apk makecapk.apk $(APPNAME).apk
+	rm -f $(APPNAME) $(APPNAME)-* $(APPNAME)-*.apk $(APPNAME)-*.apk.idsig *-unsigned.apk *.map
+	rm -rf makecapk makecapk-arm64-v8a makecapk-armeabi-v7a makecapk-x86 makecapk-x86_64
 	rm -rf libs
-	rm -rf linux_version $(APPNAME) test_runner
+	rm -rf linux_version test_runner

@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application 
-        android:debuggable="true" 
+        android:debuggable="${DEBUGGABLE}" 
         android:hasCode="false" 
         android:label="${LABEL}" 
         android:icon="@mipmap/icon"

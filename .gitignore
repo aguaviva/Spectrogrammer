@@ -16,6 +16,8 @@ build/
 **/arm64-v8a/
 *.a
 Spectrogrammer
+Spectrogrammer-*
 test_runner
 
 makecapk/
+makecapk-*/

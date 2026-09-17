@@ -13,7 +13,6 @@
 #include <android/log.h>
 #include <android/configuration.h>
 #include <android_native_app_glue.h>
-#include <android/asset_manager.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <string>
@@ -42,7 +41,6 @@ static void Resume(struct android_app* app);
 static void Shutdown(bool final);
 static void MainLoopStep();
 static void AndroidDisplayKeyboard(int pShow);
-static int GetAssetData(const char* filename, void** out_data);
 static void keep_screen_on();
 static bool HasAudioPermission();
 static void RequestAudioPermission();
@@ -501,19 +499,3 @@ void AndroidDisplayKeyboard(int pShow)
 	JAVA_CALL_DETACH
 }
 
-
-// Helper to retrieve data placed into the assets/ directory (android/app/src/main/assets)
-static int GetAssetData(const char* filename, void** outData)
-{
-    int num_bytes = 0;
-    AAsset* asset_descriptor = AAssetManager_open(g_App->activity->assetManager, filename, AASSET_MODE_BUFFER);
-    if (asset_descriptor)
-    {
-        num_bytes = AAsset_getLength(asset_descriptor);
-        *outData = IM_ALLOC(num_bytes);
-        int64_t num_bytes_read = AAsset_read(asset_descriptor, *outData, num_bytes);
-        AAsset_close(asset_descriptor);
-        IM_ASSERT(num_bytes_read == num_bytes);
-    }
-    return num_bytes;
-}

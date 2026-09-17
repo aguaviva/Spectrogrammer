@@ -3,11 +3,11 @@
 
 #include <cassert>
 #include "Processor.h"
+#include <cmath>
 #include "kiss_fftr.h"
 #include "auformat.h"
 
 float hanning(int i, int window_size);
-float hamming(int i, int window_size);
 
 class myFFT : public Processor
 {
@@ -17,8 +17,10 @@ class myFFT : public Processor
 
     BufferIODouble m_pInput_samples;
     BufferIODouble m_pOutput_bins;
+    BufferIODouble m_window;
 
     float m_fftScaling;
+    float m_invFftScaling;
     float m_sampleRate;
     float m_freq_resolution;
 
@@ -27,15 +29,19 @@ class myFFT : public Processor
         m_cfg = kiss_fftr_alloc(nfft, false, 0, 0);
         m_pInput_samples.Resize(nfft);
         m_pOutput_bins.Resize(nfft/2+1);
-        
-        for (int i = 0; i < m_pOutput_bins.GetSize(); i++)
-            m_pOutput_bins.GetData()[i]=0;
+        m_window.Resize(nfft);
+        m_pOutput_bins.clear();
 
         m_out_cpx = (kiss_fft_cpx*) malloc(sizeof(kiss_fft_cpx) * (nfft/2+1));
 
+        float *w = m_window.GetData();
         m_fftScaling = 0;
-        for(int i=0;i<m_pInput_samples.GetSize();i++)
-            m_fftScaling+=hanning(i, m_pInput_samples.GetSize());
+        for(int i=0;i<nfft;i++)
+        {
+            w[i] = hanning(i, nfft);
+            m_fftScaling += w[i];
+        }
+        m_invFftScaling = 2.0f / m_fftScaling;
     }
 
     void deinit()
@@ -71,15 +77,12 @@ public:
         assert(m_pInput_samples.GetSize()>=offsetDest+length);
 
         float *m_in_samples = m_pInput_samples.GetData();
+        const float *w = m_window.GetData();
         for (int i = 0; i < length; i++)
         {
-            float val = Uint16ToFloat(&input[i]);
-
-            int ii= i + offsetDest;
-            val *= hanning(ii, m_pInput_samples.GetSize());
-
+            int ii = i + offsetDest;
             assert(ii < m_pInput_samples.GetSize());
-            m_in_samples[ii] = val;
+            m_in_samples[ii] = (float)Uint16ToFloat(&input[i]) * w[ii];
         }
     }
 
@@ -87,17 +90,13 @@ public:
     {
         kiss_fftr( m_cfg , m_pInput_samples.GetData() , m_out_cpx );
 
-        float totalPower = 0;
-
         float *m_rout = m_pOutput_bins.GetData();
+        const float keep = decay;
+        const float mix = 1.0f - decay;
         for (int i = 0; i < getBinCount(); i++)
         {
-            float power = sqrt(m_out_cpx[i].r * m_out_cpx[i].r + m_out_cpx[i].i * m_out_cpx[i].i);
-            power *= (2 / m_fftScaling);
-            m_rout[i] = m_rout[i] *decay + power*(1.0f-decay);
-
-
-            totalPower += power;
+            float power = hypotf(m_out_cpx[i].r, m_out_cpx[i].i) * m_invFftScaling;
+            m_rout[i] = m_rout[i] * keep + power * mix;
         }
     }
 

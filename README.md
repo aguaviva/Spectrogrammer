@@ -27,13 +27,19 @@ Spectrum Analyzer
 # clone with
 git clone https://github.com/aguaviva/Spectrogrammer.git --recurse-submodules
 
-# Build for Linux
+# Build for Linux → Spectrogrammer-x86_64 (host arch suffix)
 make
 
-# Build for Android
+# Build for Android → Spectrogrammer-arm64-v8a.apk (default)
 make BUILD_ANDROID=y
 
-# Install and run the Android build
+# 32-bit ARM APK → Spectrogrammer-armeabi-v7a.apk
+make BUILD_ANDROID=y ARCH=armeabi-v7a
+
+# Both ABIs as separate APKs
+make BUILD_ANDROID=y ANDROID_ABIS="arm64-v8a armeabi-v7a"
+
+# Install and run the default (arm64) Android build
 make BUILD_ANDROID=y run
 ```
 
